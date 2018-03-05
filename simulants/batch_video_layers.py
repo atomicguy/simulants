@@ -44,7 +44,7 @@ if __name__ == '__main__':
         print('{} of {}'.format(i, len(mocap_list)))
         print('base: {}, image: {}'.format(base_blend, hdri))
 
-        subprocess.check_call(['blender', '-b', '-P', 'render_video_layers.py',
+        subprocess.check_call(['blender', '-b', '-P', 'render_layers.py',
                                '--',
                                '--blend_in', base_blend,
                                '--background', hdri,
@@ -52,5 +52,6 @@ if __name__ == '__main__':
                                '--render_id', render_id,
                                '--percent_size', args.percent_size,
                                '--blend_save', args.blend_save,
-                               '--animation_path', animation])
+                               '--animation', animation,
+                               '--stride', str(1)])
         i += 1
