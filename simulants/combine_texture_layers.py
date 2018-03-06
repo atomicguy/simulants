@@ -257,15 +257,15 @@ def make_image_uint8(image):
     return image
 
 
-def cdf_norm(array, bins):
+def cdf_norm(array, n_bins):
     """find the normalized cumulative distribution of array"""
     cdf = array.cumsum()
-    cdf = (bins * cdf / cdf[-1]).astype(np.uint8)
+    cdf = (n_bins * cdf / cdf[-1]).astype(np.uint8)
 
     return cdf
 
 
-def match_background(foreground_img, background_img):
+def match_background_rgb(foreground_img, background_img):
     """use histogram matching to match the foreground more closely to background
 
     :param foreground_img: ndimage 4 channel array
@@ -301,6 +301,50 @@ def match_background(foreground_img, background_img):
     matched = Image.fromarray(matched)
 
     return matched
+
+
+def match_background_lab(foreground_img, background_img):
+    """use lab histogram matching to match the foreground contrast more closely to background
+
+    :param foreground_img: ndimage 4 channel array
+    :param background_img: ndimage
+    :return: PIL RGBA image
+    """
+    foreground_img = as_ndarray(foreground_img)
+    background_img = as_ndarray(background_img)
+
+    foreground = make_image_uint8(foreground_img)
+    foreground_rgb = foreground[:, :, :3]
+    foreground_lab = color.rgb2lab(foreground_rgb)
+    foreground_a = foreground[:, :, 3]
+
+    background = make_image_uint8(background_img)
+    background_lab = color.rgb2lab(background[:, :, :3])
+
+    n_bins = 255
+
+    matched = foreground.copy()
+    matched_lab = foreground_lab.copy()
+
+    for d in range(foreground_rgb.shape[2]):
+        f_hist, bins = np.histogram(foreground_lab[:, :, d].flatten(), bins=n_bins, density=True,
+                                    weights=foreground_a.flatten())
+        b_hist, bins = np.histogram(background_lab[:, :, d], bins=n_bins, density=True)
+
+        cdf_f = cdf_norm(f_hist, n_bins)
+        cdf_b = cdf_norm(b_hist, n_bins)
+
+        im2 = np.interp(foreground_lab[:, :, d].flatten(), bins[:-1], cdf_f)
+        im3 = np.interp(im2, cdf_b, bins[:-1])
+
+        matched[:, :, d] = im3.reshape((foreground.shape[0], foreground.shape[1]))
+
+    foreground_lab[:, :, :3] = matched_lab[:, :, :3]
+    foreground_corrected = color.lab2rgb(matched_lab)
+    foreground_corrected = foreground_corrected * 255
+    matched[:, :, :3] = foreground_corrected[:, :, :3]
+
+    return Image.fromarray(matched)
 
 
 def random_crop(imgs, crop_factor=0.99, stddev=0.14):
@@ -346,6 +390,7 @@ if __name__ == '__main__':
     parser.add_argument('--seed', '-d', type=str, help='seed to use for video', default='')
     parser.add_argument('--p_text', '-e', type=str, help='path for clothing textures', default='')
     parser.add_argument('--s_text', '-x', type=str, help='path for clothing textures', default='')
+    parser.add_argument('--matching_method', '-z', type=str, help='method for matching fore/background', defalut='RGB')
     args = parser.parse_args()
 
     if args.type == 'video':
@@ -356,8 +401,13 @@ if __name__ == '__main__':
                                           args.ao_path, args.p_text, args.s_text)
     foreground, clothes_mask = generate_overlay(person, clothes, args.background, args.type)
 
-    # match foreground histogram to background image histogram
-    foreground = match_background(foreground, bg)
+    # color match
+    if args.matching_method is 'RGB':
+        foreground = match_background_rgb(foreground, bg)
+    elif args.matching_method is 'LAB':
+        foreground = match_background_lab(foreground, bg)
+    else:
+        print('no matching method specified')
 
     comp = Image.alpha_composite(bg, foreground)
 
