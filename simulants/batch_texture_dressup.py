@@ -81,20 +81,21 @@ if __name__ == '__main__':
 
         person = images['front']
         background = images['back']
-        skin = os.path.join(args.input_dir, 'skin_material_index', base_name)
+        skin = os.path.join(args.input_dir, 'body_material_index', base_name)
+        head = os.path.join(args.input_dir, 'head_material_index', base_name)
         shirt = os.path.join(args.input_dir, 'shirt_material_index', base_name)
         pants = os.path.join(args.input_dir, 'pants_material_index', base_name)
-        # hair = os.path.join(args.input_dir, 'hair_material_index', base_name)
-        hair = skin
+        hair = os.path.join(args.input_dir, 'hair_material_index', base_name)
         ao = os.path.join(args.input_dir, 'ambient_occlusion', base_name)
 
         texture_list = list_files(args.texture, 'png')
         pants_text = os.path.join(args.texture, random.choice(texture_list))
         shirt_text = os.path.join(args.texture, random.choice(texture_list))
 
-        cmd = ['python', 'combine_texture_layers.py',
+        cmd = ['python', 'combine_layers.py',
                '--person', person,
                '--skin_path', skin,
+               '--head', head,
                '--shirt_path', shirt,
                '--pants_path', pants,
                '--hair_path', hair,
