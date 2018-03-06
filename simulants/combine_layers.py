@@ -13,6 +13,7 @@ from PIL import Image
 from PIL import ImageOps
 from PIL import ImageChops
 from skimage import color
+from skimage import util
 from argparse import ArgumentParser
 
 
@@ -411,6 +412,17 @@ def random_crop(imgs, crop_factor=0.99, stddev=0.14):
     return cropped_imgs
 
 
+def mult_by_noise(image):
+    np_image = np.asarray(image)
+    new_image = np_image.copy()
+    np_image_rgb = np_image[:, :, :3]
+    noise = np.random.normal(loc=0.9, scale=0.1, size=np_image_rgb.shape)
+    noisy_image = np_image_rgb * noise
+    new_image[:, :, :3] = noisy_image[:, :, :3]
+
+    return Image.fromarray(new_image, mode='RGBA')
+
+
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--person', '-p', type=str, help='foreground person image', required=True)
@@ -448,7 +460,10 @@ if __name__ == '__main__':
     else:
         print('no matching method specified')
 
+    # foreground = mult_by_noise(foreground)
+
     comp = Image.alpha_composite(bg, foreground)
+    comp = mult_by_noise(comp)
 
     # Set to foreground for all person mask, or clothes for clothing mask
     mask = generate_mask(foreground)
