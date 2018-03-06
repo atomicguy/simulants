@@ -10,9 +10,8 @@ import datetime
 import numpy as np
 
 from PIL import Image
+from PIL import ImageOps
 from PIL import ImageChops
-from scipy import misc
-from scipy import ndimage
 from argparse import ArgumentParser
 
 
@@ -59,6 +58,7 @@ def isolate_item(rendered_image, item_mask):
     """
     rendered_image = as_ndarray(rendered_image)
     masked_image = copy.copy(rendered_image)
+    masked_image = np.asarray(masked_image)
     masked_image[:, :, 3] = item_mask
     masked_image = Image.fromarray(masked_image)
     
@@ -81,15 +81,22 @@ def skin_block(original_image, emoji_skin):
     return Image.new('RGBA', original_image.shape[:2], color=random_skin)
 
 
-def color_block(original_image):
-    """Return random block of color with uniform random chance HSV"""
-    original_image = as_ndarray(original_image)
-    hsv = (random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1))
+def random_hsv_color(min_v, max_v):
+    """random hsv color with min and max brightness value"""
+    hsv = (random.uniform(0, 1), random.uniform(0, 1), random.uniform(min_v, max_v))
     rgb = colorsys.hsv_to_rgb(hsv[0], hsv[1], hsv[2])
     r = int(rgb[0] * 255)
     g = int(rgb[1] * 255)
     b = int(rgb[2] * 255)
     rgb = (r, g, b)
+
+    return rgb
+
+
+def color_block(original_image):
+    """Return random block of color with uniform random chance HSV"""
+    original_image = as_ndarray(original_image)
+    rgb = random_hsv_color(0, 1)
 
     return Image.new('RGBA', original_image.shape[:2], color=rgb)
 
@@ -101,7 +108,20 @@ def convert_to_binary(image):
     return image
 
 
-def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path, ao_path, head_path):
+def colorize_hair(image, hair_mask):
+    image = image.convert(mode='L')
+    image = ImageOps.autocontrast(image, ignore=0)
+    mid_point = random.uniform(0,1)
+    dark = random_hsv_color(0, mid_point)
+    light = random_hsv_color(mid_point, 1)
+    colorized = ImageOps.colorize(image, dark, light)
+    colorized = colorized.convert(mode='RGBA')
+    just_hair = isolate_item(colorized, hair_mask)
+
+    return just_hair
+
+
+def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path, ao_path, head_path, p_text, s_text):
     """Generate composited, colorized image from layer paths"""
     image = Image.open(image_path).convert('RGBA')
     skin = Image.open(skin_path).convert('L')
@@ -109,14 +129,26 @@ def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path
     pants = Image.open(pants_path).convert('L')
     hair = Image.open(hair_path).convert('L')
     ao = Image.open(ao_path).convert('RGBA')
+
     head = None
-    if head_path is not None:
+    if head_path is not '':
         head = Image.open(head_path).convert('RGBA')
+        skin = Image.alpha_composite(skin.convert(mode='RGBA'), head)
+        skin = skin.convert(mode='L')
 
     new_skin = combine_with_color(image, skin, skin_block(image, emoji_skin()))
-    new_shirt = combine_with_color(image, shirt, color_block(image))
-    new_pants = combine_with_color(image, pants, color_block(image))
-    new_hair = combine_with_color(image, hair, color_block(image))
+
+    if p_text is not '':
+        shirt_texture = Image.open(s_text).convert('RGBA')
+        pants_texture = Image.open(p_text).convert('RGBA')
+        new_shirt = combine_with_color(image, shirt, shirt_texture)
+        new_pants = combine_with_color(image, pants, pants_texture)
+    else:
+        new_shirt = combine_with_color(image, shirt, color_block(image))
+        new_pants = combine_with_color(image, pants, color_block(image))
+
+    # new_hair = combine_with_color(image, hair, color_block(image))
+    new_hair = colorize_hair(image, hair)
 
     clothes = Image.alpha_composite(new_shirt, new_pants)
     body = Image.alpha_composite(new_skin, new_hair)
@@ -332,6 +364,7 @@ def random_crop(imgs, crop_factor=0.99, stddev=0.14):
     cropped_imgs = [i.crop([x1,y1,x2,y2]) for i in imgs]
     return cropped_imgs
 
+
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--person', '-p', type=str, help='foreground person image', required=True)
@@ -348,6 +381,8 @@ if __name__ == '__main__':
     parser.add_argument('--seed', '-d', type=str, help='seed to use for video', default='')
     parser.add_argument('--head', '-z', type=str, help='if set, save head mask', default='')
     parser.add_argument('--head_out', '-w', type=str, help='output head mask', default='')
+    parser.add_argument('--p_text', '-e', type=str, help='path for pants textures if set', default='')
+    parser.add_argument('--s_text', '-x', type=str, help='path for shirt textures if set', default='')
     args = parser.parse_args()
 
     if args.type == 'video':
@@ -355,7 +390,7 @@ if __name__ == '__main__':
 
     bg = Image.open(args.background).convert('RGBA')
     person, clothes, head = make_clothed_person(args.person, args.skin_path, args.shirt_path, args.pants_path, args.hair_path,
-                                          args.ao_path, args.head)
+                                          args.ao_path, args.head, args.p_text, args.s_text)
     foreground, clothes_mask, head_mask = generate_overlay(person, clothes, head, args.background, args.type)
 
     # match foreground histogram to background image histogram
