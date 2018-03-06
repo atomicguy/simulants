@@ -325,7 +325,8 @@ def set_render_settings(percent_size, tile_size):
     bpy.context.scene.render.tile_x = tile_size
     bpy.context.scene.render.tile_y = tile_size
 
-    # bpy.context.scene.render.layers[0].cycles.use_denoising = True
+    bpy.context.scene.render.layers[0].cycles.use_denoising = False
+    bpy.context.scene.render.layers[0].cycles.denoising_radius = 4
     bpy.context.scene.cycles.sampling_pattern = 'CORRELATED_MUTI_JITTER'
 
     bpy.context.scene.cycles.max_bounces = 8
@@ -475,4 +476,4 @@ if __name__ == '__main__':
         file_id = args.render_id
 
     render_character(args.blend_in, args.background, args.img_out, args.percent_size, file_id, args.blend_save,
-                     args.animation, args.steps)
+                     args.animation, args.stride)
