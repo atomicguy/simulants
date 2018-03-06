@@ -92,7 +92,7 @@ if __name__ == '__main__':
         pants_text = os.path.join(args.texture, random.choice(texture_list))
         shirt_text = os.path.join(args.texture, random.choice(texture_list))
 
-        cmd = ['python', 'combine_layers.py',
+        cmd = ['python', 'combine_texture_layers.py',
                '--person', person,
                '--skin_path', skin,
                '--shirt_path', shirt,
