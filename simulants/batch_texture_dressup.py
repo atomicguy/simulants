@@ -103,7 +103,8 @@ if __name__ == '__main__':
                '--composite', comp_dir,
                '--mask', mask_dir,
                '--p_text', pants_text,
-               '--s_text', shirt_text]
+               '--s_text', shirt_text,
+               '--matching_method', 'RGB']
 
         subprocess.check_call(cmd)
         i += 1
