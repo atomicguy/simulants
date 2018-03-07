@@ -501,6 +501,23 @@ def mult_by_noise(image):
     return Image.fromarray(new_image, mode='RGBA')
 
 
+def matching_method(foreground, background, method_setting):
+    if method_setting == 'RGB':
+        foreground = match_background_rgb(foreground, background)
+    elif method_setting == 'LAB':
+        foreground = match_background_lab(foreground, background)
+    elif method_setting == 'HSV':
+        foreground = match_background_hsv(foreground, background)
+    elif method_setting == 'SAT':
+        foreground = match_background_sat(foreground, background)
+    elif method_setting == 'SATVAL':
+        foreground = match_background_sat_val(foreground, background)
+    else:
+        print('no matching method specified')
+
+    return foreground
+
+
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--person', '-p', type=str, help='foreground person image', required=True)
@@ -520,6 +537,7 @@ if __name__ == '__main__':
     parser.add_argument('--p_text', '-e', type=str, help='path for pants textures if set', default='')
     parser.add_argument('--s_text', '-x', type=str, help='path for shirt textures if set', default='')
     parser.add_argument('--matching_method', '-u', type=str, help='method for matching fore/background', default='RGB')
+    parser.add_argument('--noise_type', '-q', type=str, help='noise type to use', default='')
     args = parser.parse_args()
 
     if args.type == 'video':
@@ -530,30 +548,22 @@ if __name__ == '__main__':
                                                 args.hair_path, args.ao_path, args.head, args.p_text, args.s_text)
     foreground, clothes_mask, head_mask = generate_overlay(person, clothes, head, args.background, args.type)
 
-    # color match
-    if args.matching_method == 'RGB':
-        foreground = match_background_rgb(foreground, bg)
-    elif args.matching_method == 'LAB':
-        foreground = match_background_lab(foreground, bg)
-    elif args.matching_method == 'HSV':
-        foreground = match_background_hsv(foreground, bg)
-    elif args.matching_method == 'SAT':
-        foreground = match_background_sat(foreground, bg)
-    elif args.matching_method == 'SATVAL':
-        foreground = match_background_sat_val(foreground, bg)
-    else:
-        print('no matching method specified')
+    foreground = matching_method(foreground, bg, args.matching_method)
 
-    # foreground = mult_by_noise(foreground)
+    if args.noise_type == 'foreground':
+        foreground = mult_by_noise(foreground)
 
     comp = Image.alpha_composite(bg, foreground)
-    comp = mult_by_noise(comp)
+
+    if args.noise_type == 'all':
+        comp = mult_by_noise(comp)
 
     # Set to foreground for all person mask, or clothes for clothing mask
     mask = generate_mask(foreground)
 
     timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')
     comp_id = 'simulant_{}'.format(timestamp)
+
     if args.out_name is not '':
         comp_id = args.out_name
 
