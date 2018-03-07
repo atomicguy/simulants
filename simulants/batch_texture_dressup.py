@@ -61,6 +61,8 @@ if __name__ == '__main__':
     parser.add_argument('--input_dir', '-i', type=str, help='directory of foreground images')
     parser.add_argument('--background_dir', '-b', type=str, help='directory of background images')
     parser.add_argument('--texture', '-t', type=str, help='texture directory')
+    parser.add_argument('--matching', '-m', type=str, help='type of color matching to use', default='')
+    parser.add_argument('--noise', '-s', type=str, help='type of noise to add', default='')
     parser.add_argument('--num', '-n', type=int, help='number of composites to generate', default=1)
     parser.add_argument('--out_dir', '-o', type=str, help='output directory')
     args = parser.parse_args()
@@ -109,8 +111,8 @@ if __name__ == '__main__':
                '--head_out', head_dir,
                '--p_text', pants_text,
                '--s_text', shirt_text,
-               '--matching_method', 'RGB',
-               '--noise_type', 'foreground']
+               '--matching_method', args.matching,
+               '--noise_type', args.noise]
 
         subprocess.check_call(cmd)
         i += 1
