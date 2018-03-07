@@ -71,6 +71,9 @@ if __name__ == '__main__':
     mask_dir = os.path.join(args.out_dir, 'masks')
     if not os.path.exists(mask_dir):
         os.makedirs(mask_dir)
+    head_dir = os.path.join(args.out_dir, 'heads')
+    if not os.path.exists(head_dir):
+        os.makedirs(head_dir)
 
 
     i = 1
@@ -103,9 +106,11 @@ if __name__ == '__main__':
                '--background', background,
                '--composite', comp_dir,
                '--mask', mask_dir,
+               '--head_out', head_dir,
                '--p_text', pants_text,
                '--s_text', shirt_text,
-               '--matching_method', 'RGB']
+               '--matching_method', 'RGB',
+               '--noise_type', 'foreground']
 
         subprocess.check_call(cmd)
         i += 1
