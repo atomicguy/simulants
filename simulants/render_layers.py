@@ -376,11 +376,11 @@ def setup_head_mask():
         obj.select = False
 
     # Select just the human
-    human_mesh = [obj for obj in bpy.data.objects if obj.name.startswith('MBlab_bd')][0]
+    human_mesh = get_human_mesh()
     bpy.context.scene.objects.active = human_mesh
 
     # Copy skin material into new material slot on body mesh
-    skin_mat = [mat for mat in bpy.data.materials if mat.name.startswith('MBlab_human_skin')][0]
+    skin_mat = get_blend_mat('MBlab_human_skin')
     body_mat = skin_mat.copy()
     body_mat.name = 'body'
     human_mesh.data.materials.append(body_mat)
