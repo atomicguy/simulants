@@ -13,7 +13,6 @@ from PIL import Image
 from PIL import ImageOps
 from PIL import ImageChops
 from skimage import color
-from skimage import util
 from argparse import ArgumentParser
 
 
@@ -285,7 +284,9 @@ def generate_mask(foreground):
 
 def make_image_uint8(image):
     """make sure image is 255, uint8 formatted"""
+    print('making uint8 from {}'.format(image.dtype))
     if image.dtype != 'uint8':
+        print('image.dtype is not uint8')
         if np.max(image) <= 1:
             image = image * 255
         image = image.astype('uint8')
@@ -301,6 +302,38 @@ def cdf_norm(array, bins):
     return cdf
 
 
+def match_channels(foreground, background, n_bins):
+    """Use Histogram Matching to match foreground and background images by channel
+
+    :param foreground: 4 channel ndarray image (i.e. RGBA, LABA, etc)
+    :param background: background in same format as foreground
+    :param n_bins: number of bins to match (usually 255)
+    :return: histogram matched image in same format as original (RGBA etc)
+    """
+
+    # Ensure correct data types
+    assert foreground.dtype == background.dtype, 'foreground and background cannot be different dtypes'
+
+    matched = foreground.copy()
+    foreground_3 = foreground[:, :, :3]
+    foreground_alpha = foreground[:, :, 3]
+
+    for d in range(foreground_3.shape[2]):
+        f_hist, bins = np.histogram(foreground_3[:, :, d].flatten(), bins=n_bins, density=True,
+                                    weights=foreground_alpha.flatten())
+        b_hist, bins = np.histogram(background[:, :, d], bins=n_bins, density=True)
+
+        cdf_f = cdf_norm(f_hist, n_bins)
+        cdf_b = cdf_norm(b_hist, n_bins)
+
+        im2 = np.interp(foreground_3[:, :, d].flatten(), bins[:-1], cdf_f)
+        im3 = np.interp(im2, cdf_b, bins[:-1])
+
+        matched[:, :, d] = im3.reshape((foreground.shape[0], foreground.shape[1]))
+
+    return matched
+
+
 def match_background_rgb(foreground_img, background_img):
     """use histogram matching to match the foreground more closely to background
 
@@ -308,32 +341,12 @@ def match_background_rgb(foreground_img, background_img):
     :param background_img: ndimage
     :return: PIL RGBA image
     """
+
     foreground_img = as_ndarray(foreground_img)
     background_img = as_ndarray(background_img)
-
-    foreground = make_image_uint8(foreground_img)
-    foreground_rgb = foreground[:, :, :3]
-    foreground_a = foreground[:, :, 3]
-
-    background = make_image_uint8(background_img)
-
     n_bins = 255
 
-    matched = foreground.copy()
-
-    for d in range(foreground_rgb.shape[2]):
-        f_hist, bins = np.histogram(foreground_rgb[:, :, d].flatten(), bins=n_bins, density=True,
-                                    weights=foreground_a.flatten())
-        b_hist, bins = np.histogram(background[:, :, d], bins=n_bins, density=True)
-
-        cdf_f = cdf_norm(f_hist, n_bins)
-        cdf_b = cdf_norm(b_hist, n_bins)
-
-        im2 = np.interp(foreground_rgb[:, :, d].flatten(), bins[:-1], cdf_f)
-        im3 = np.interp(im2, cdf_b, bins[:-1])
-
-        matched[:, :, d] = im3.reshape((foreground.shape[0], foreground.shape[1]))
-
+    matched = match_channels(foreground_img, background_img, n_bins)
     matched = Image.fromarray(matched)
 
     return matched
@@ -346,41 +359,74 @@ def match_background_lab(foreground_img, background_img):
     :param background_img: ndimage
     :return: PIL RGBA image
     """
+
     foreground_img = as_ndarray(foreground_img)
     background_img = as_ndarray(background_img)
-
-    foreground = make_image_uint8(foreground_img)
-    foreground_rgb = foreground[:, :, :3]
-    foreground_lab = color.rgb2lab(foreground_rgb)
-    foreground_a = foreground[:, :, 3]
-
-    background = make_image_uint8(background_img)
-    background_lab = color.rgb2lab(background[:, :, :3])
-
     n_bins = 255
 
-    matched = foreground.copy()
-    matched_lab = foreground_lab.copy()
+    foreground_img_lab = color.rgb2lab(foreground_img[:, :, :3])
+    background_img_lab = color.rgb2lab(background_img[:, :, :3])
+    foreground_alpha = np.expand_dims(foreground_img[:, :, 3], 2)
+    foreground_img_laba = np.concatenate((foreground_img_lab, foreground_alpha), axis=2)
 
-    for d in range(foreground_rgb.shape[2]):
-        f_hist, bins = np.histogram(foreground_lab[:, :, d].flatten(), bins=n_bins, density=True,
-                                    weights=foreground_a.flatten())
-        b_hist, bins = np.histogram(background_lab[:, :, d], bins=n_bins, density=True)
+    matched = match_channels(foreground_img_laba, background_img_lab, n_bins)
+    matched_rgb = color.lab2rgb(matched[:, :, :3]) * 255
+    matched[:, :, :3] = matched_rgb[:, :, :3]
+    matched = Image.fromarray(matched.astype('uint8'))
 
-        cdf_f = cdf_norm(f_hist, n_bins)
-        cdf_b = cdf_norm(b_hist, n_bins)
+    return matched
 
-        im2 = np.interp(foreground_lab[:, :, d].flatten(), bins[:-1], cdf_f)
-        im3 = np.interp(im2, cdf_b, bins[:-1])
 
-        matched[:, :, d] = im3.reshape((foreground.shape[0], foreground.shape[1]))
+def match_background_hsv(foreground_img, background_img):
+    """use hsv histogram matching to match the foreground contrast more closely to background
 
-    foreground_lab[:, :, :3] = matched_lab[:, :, :3]
-    foreground_corrected = color.lab2rgb(matched_lab)
-    foreground_corrected = foreground_corrected * 255
-    matched[:, :, :3] = foreground_corrected[:, :, :3]
+    :param foreground_img: ndimage 4 channel array
+    :param background_img: ndimage
+    :return: PIL RGBA image
+    """
 
-    return Image.fromarray(matched)
+    foreground_img = as_ndarray(foreground_img)
+    background_img = as_ndarray(background_img)
+    n_bins = 255
+
+    foreground_img_hsv = color.rgb2hsv(foreground_img[:, :, :3])
+    background_img_hsv = color.rgb2hsv(background_img[:, :, :3])
+    foreground_alpha = np.expand_dims(foreground_img[:, :, 3], 2)
+    foreground_img_hsva = np.concatenate((foreground_img_hsv, foreground_alpha), axis=2)
+
+    matched = match_channels(foreground_img_hsva, background_img_hsv, n_bins)
+    matched_rgb = color.hsv2rgb(matched[:, :, :3]) * 255
+    matched[:, :, :3] = matched_rgb[:, :, :3]
+    matched = Image.fromarray(matched.astype('uint8'))
+
+    return matched
+
+
+def match_background_sat(foreground_img, background_img):
+    """histogram match just saturation
+
+    :param foreground_img: ndimage 4 channel array
+    :param background_img: ndimage
+    :return: PIL RGBA image
+    """
+
+    foreground_img = as_ndarray(foreground_img)
+    background_img = as_ndarray(background_img)
+    n_bins = 255
+
+    foreground_img_hsv = color.rgb2hsv(foreground_img[:, :, :3])
+    background_img_hsv = color.rgb2hsv(background_img[:, :, :3])
+    foreground_alpha = np.expand_dims(foreground_img[:, :, 3], 2)
+    foreground_img_hsva = np.concatenate((foreground_img_hsv, foreground_alpha), axis=2)
+
+    matched = match_channels(foreground_img_hsva, background_img_hsv, n_bins)
+    matched[:, :, 0] = foreground_img_hsv[:, :, 0]
+    matched[:, :, 2] = foreground_img_hsv[:, :, 2]
+    matched_rgb = color.hsv2rgb(matched[:, :, :3]) * 255
+    matched[:, :, :3] = matched_rgb[:, :, :3]
+    matched = Image.fromarray(matched.astype('uint8'))
+
+    return matched
 
 
 def random_crop(imgs, crop_factor=0.99, stddev=0.14):
@@ -457,6 +503,10 @@ if __name__ == '__main__':
         foreground = match_background_rgb(foreground, bg)
     elif args.matching_method == 'LAB':
         foreground = match_background_lab(foreground, bg)
+    elif args.matching_method == 'HSV':
+        foreground = match_background_hsv(foreground, bg)
+    elif args.matching_method == 'SAT':
+        foreground = match_background_sat(foreground, bg)
     else:
         print('no matching method specified')
 
