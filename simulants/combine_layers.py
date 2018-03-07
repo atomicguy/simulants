@@ -122,6 +122,14 @@ def colorize_hair(image, hair_mask):
     return just_hair
 
 
+def mask2rgba(alpha_image):
+    """Convert 'L' mode image to 'RGBA' as stack"""
+    rgba = np.asarray(alpha_image)
+    rgba = np.stack((rgba, rgba, rgba, rgba), axis=2)
+
+    return Image.fromarray(rgba.astype('uint8'))
+
+
 def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path, ao_path, head_path, p_text, s_text):
     """Generate composited, colorized image from layer paths"""
     image = Image.open(image_path).convert('RGBA')
@@ -131,11 +139,14 @@ def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path
     hair = Image.open(hair_path).convert('L')
     ao = Image.open(ao_path).convert('RGBA')
 
+    new_hair = colorize_hair(image, hair)
+
     head = None
     if head_path is not '':
         head = Image.open(head_path).convert('RGBA')
         skin = Image.alpha_composite(skin.convert(mode='RGBA'), head)
         skin = skin.convert(mode='L')
+        head = Image.alpha_composite(head, mask2rgba(hair))
 
     new_skin = combine_with_color(image, skin, skin_block(image, emoji_skin()))
 
@@ -147,9 +158,6 @@ def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path
     else:
         new_shirt = combine_with_color(image, shirt, color_block(image))
         new_pants = combine_with_color(image, pants, color_block(image))
-
-    # new_hair = combine_with_color(image, hair, color_block(image))
-    new_hair = colorize_hair(image, hair)
 
     clothes = Image.alpha_composite(new_shirt, new_pants)
     body = Image.alpha_composite(new_skin, new_hair)
@@ -230,6 +238,16 @@ def center_new_ul(person_size, bg_size):
     return (x, y)
 
 
+def new_part(image, new_size, new_rotation, new_xy, background_size):
+    """Resize, rotate, and position image in a given background size"""
+    resized_part = resize_image(image, new_size)
+    rotated_part = rotate_image(image, new_rotation)
+    full_size = blank_image(background_size)
+    full_size.paste(resized_part, box=new_xy)
+
+    return full_size
+
+
 def generate_overlay(person, clothes, head, bg_image_loc, type):
     """generate overlay image with resized person on blank alpha
 
@@ -251,26 +269,14 @@ def generate_overlay(person, clothes, head, bg_image_loc, type):
         new_xy = center_new_ul(new_size, bg_size)
         new_rotation = 0
 
-    resized_person = resize_image(person, new_size)
-    resized_person = rotate_image(resized_person, new_rotation)
+    overlay = new_part(person, new_size, new_rotation, new_xy, bg_size)
+    just_clothes = new_part(clothes, new_size, new_rotation, new_xy, bg_size)
 
-    resized_clothes = resize_image(clothes, new_size)
-    resized_clothes = rotate_image(resized_clothes, new_rotation)
-
-    overlay = blank_image(bg_size)
-    overlay.paste(resized_person, box=new_xy)
-
-    just_clothes = blank_image(bg_size)
-    just_clothes.paste(resized_clothes, box=new_xy)
-
-    head_mask = None
+    new_head = None
     if head is not None:
-        resized_head = resize_image(head, new_size)
-        resized_head = rotate_image(resized_head, new_rotation)
-        head_mask = blank_image(bg_size)
-        head_mask.paste(resized_head, box=new_xy)
+        new_head = new_part(head, new_size, new_rotation, new_xy, bg_size)
 
-    return overlay, just_clothes, head_mask
+    return overlay, just_clothes, new_head
 
 
 def generate_mask(foreground):
