@@ -435,6 +435,32 @@ def match_background_sat(foreground_img, background_img):
     return matched
 
 
+def match_background_sat_val(foreground_img, background_img):
+    """histogram match just saturation
+
+    :param foreground_img: ndimage 4 channel array
+    :param background_img: ndimage
+    :return: PIL RGBA image
+    """
+
+    foreground_img = as_ndarray(foreground_img)
+    background_img = as_ndarray(background_img)
+    n_bins = 255
+
+    foreground_img_hsv = color.rgb2hsv(foreground_img[:, :, :3])
+    background_img_hsv = color.rgb2hsv(background_img[:, :, :3])
+    foreground_alpha = np.expand_dims(foreground_img[:, :, 3], 2)
+    foreground_img_hsva = np.concatenate((foreground_img_hsv, foreground_alpha), axis=2)
+
+    matched = match_channels(foreground_img_hsva, background_img_hsv, n_bins)
+    matched[:, :, 0] = foreground_img_hsv[:, :, 0]
+    matched_rgb = color.hsv2rgb(matched[:, :, :3]) * 255
+    matched[:, :, :3] = matched_rgb[:, :, :3]
+    matched = Image.fromarray(matched.astype('uint8'))
+
+    return matched
+
+
 def random_crop(imgs, crop_factor=0.99, stddev=0.14):
     # Randomly image to simulate handshake jitter
 
@@ -513,6 +539,8 @@ if __name__ == '__main__':
         foreground = match_background_hsv(foreground, bg)
     elif args.matching_method == 'SAT':
         foreground = match_background_sat(foreground, bg)
+    elif args.matching_method == 'SATVAL':
+        foreground = match_background_sat_val(foreground, bg)
     else:
         print('no matching method specified')
 
