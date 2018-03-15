@@ -26,6 +26,7 @@ if __name__ == '__main__':
     width, height = background.size
 
     short_side = min(width, height)
+    long_side = max(width, height)
 
     width_new = int(short_side * 0.9)
     height_new = width_new
@@ -55,6 +56,7 @@ if __name__ == '__main__':
         tl = np.round(step_size * frame).astype(np.int)
         br = tl + size_new
         image_cropped = background.crop(box=(tl[1], tl[0], br[1], br[0]))
+        image_resized = image_cropped.resize((1024, 1024), Image.BICUBIC)
         if motion is 'backward':
             frame = number_frames - frame - 1
-        image_cropped.save(os.path.join(args.output, '{}_{}.png'.format(image_name, str(frame).zfill(4))))
+        image_resized.save(os.path.join(args.output, '{}_{}.png'.format(image_name, str(frame).zfill(4))))
