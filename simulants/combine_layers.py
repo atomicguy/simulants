@@ -10,9 +10,9 @@ import datetime
 import numpy as np
 
 from PIL import Image
+from PIL import ImageOps
 from PIL import ImageChops
-from scipy import misc
-from scipy import ndimage
+from skimage import color
 from argparse import ArgumentParser
 
 
@@ -59,6 +59,7 @@ def isolate_item(rendered_image, item_mask):
     """
     rendered_image = as_ndarray(rendered_image)
     masked_image = copy.copy(rendered_image)
+    masked_image = np.asarray(masked_image)
     masked_image[:, :, 3] = item_mask
     masked_image = Image.fromarray(masked_image)
     
@@ -81,15 +82,22 @@ def skin_block(original_image, emoji_skin):
     return Image.new('RGBA', original_image.shape[:2], color=random_skin)
 
 
-def color_block(original_image):
-    """Return random block of color with uniform random chance HSV"""
-    original_image = as_ndarray(original_image)
-    hsv = (random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1))
+def random_hsv_color(min_v, max_v):
+    """random hsv color with min and max brightness value"""
+    hsv = (random.uniform(0, 1), random.uniform(0, 1), random.uniform(min_v, max_v))
     rgb = colorsys.hsv_to_rgb(hsv[0], hsv[1], hsv[2])
     r = int(rgb[0] * 255)
     g = int(rgb[1] * 255)
     b = int(rgb[2] * 255)
     rgb = (r, g, b)
+
+    return rgb
+
+
+def color_block(original_image):
+    """Return random block of color with uniform random chance HSV"""
+    original_image = as_ndarray(original_image)
+    rgb = random_hsv_color(0, 1)
 
     return Image.new('RGBA', original_image.shape[:2], color=rgb)
 
@@ -101,7 +109,28 @@ def convert_to_binary(image):
     return image
 
 
-def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path, ao_path, head_path):
+def colorize_hair(image, hair_mask):
+    image = image.convert(mode='L')
+    image = ImageOps.autocontrast(image, ignore=0)
+    mid_point = random.uniform(0,1)
+    dark = random_hsv_color(0, mid_point)
+    light = random_hsv_color(mid_point, 1)
+    colorized = ImageOps.colorize(image, dark, light)
+    colorized = colorized.convert(mode='RGBA')
+    just_hair = isolate_item(colorized, hair_mask)
+
+    return just_hair
+
+
+def mask2rgba(alpha_image):
+    """Convert 'L' mode image to 'RGBA' as stack"""
+    rgba = np.asarray(alpha_image)
+    rgba = np.stack((rgba, rgba, rgba, rgba), axis=2)
+
+    return Image.fromarray(rgba.astype('uint8'))
+
+
+def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path, ao_path, head_path, p_text, s_text):
     """Generate composited, colorized image from layer paths"""
     image = Image.open(image_path).convert('RGBA')
     skin = Image.open(skin_path).convert('L')
@@ -109,14 +138,26 @@ def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path
     pants = Image.open(pants_path).convert('L')
     hair = Image.open(hair_path).convert('L')
     ao = Image.open(ao_path).convert('RGBA')
+
+    new_hair = colorize_hair(image, hair)
+
     head = None
-    if head_path is not None:
+    if head_path is not '':
         head = Image.open(head_path).convert('RGBA')
+        skin = Image.alpha_composite(skin.convert(mode='RGBA'), head)
+        skin = skin.convert(mode='L')
+        head = Image.alpha_composite(head, mask2rgba(hair))
 
     new_skin = combine_with_color(image, skin, skin_block(image, emoji_skin()))
-    new_shirt = combine_with_color(image, shirt, color_block(image))
-    new_pants = combine_with_color(image, pants, color_block(image))
-    new_hair = combine_with_color(image, hair, color_block(image))
+
+    if p_text is not '':
+        shirt_texture = Image.open(s_text).convert('RGBA')
+        pants_texture = Image.open(p_text).convert('RGBA')
+        new_shirt = combine_with_color(image, shirt, shirt_texture)
+        new_pants = combine_with_color(image, pants, pants_texture)
+    else:
+        new_shirt = combine_with_color(image, shirt, color_block(image))
+        new_pants = combine_with_color(image, pants, color_block(image))
 
     clothes = Image.alpha_composite(new_shirt, new_pants)
     body = Image.alpha_composite(new_skin, new_hair)
@@ -141,7 +182,7 @@ def blank_image(image_size):
     return blank
 
 
-def new_person_size(person_size, bg_size):
+def new_person_size(person_size, bg_size, min_factor, max_factor):
     """Generate new (random) size for the person image that will fit within the bg"""
     person_w = person_size[0]
     person_h = person_size[1]
@@ -149,8 +190,8 @@ def new_person_size(person_size, bg_size):
 
     bg_w = bg_size[0]
     bg_h = bg_size[1]
-    max_side = max(bg_w, bg_h) * 2
-    min_size = min(bg_w, bg_h) * 0.15
+    max_side = max(bg_w, bg_h) * max_factor
+    min_size = min(bg_w, bg_h) * min_factor
 
     new_w = int(random.uniform(min_size, max_side))
     new_size = (new_w, new_w)
@@ -197,7 +238,18 @@ def center_new_ul(person_size, bg_size):
     return (x, y)
 
 
-def generate_overlay(person, clothes, head, bg_image_loc, type):
+def new_part(image, new_size, new_rotation, new_xy, background_size):
+    """Resize, rotate, and position image in a given background size"""
+    resized_part = resize_image(image, new_size)
+    rotated_part = rotate_image(resized_part, new_rotation)
+    full_size = blank_image(background_size)
+    full_size.paste(rotated_part, box=new_xy)
+
+    return full_size
+
+
+def generate_overlay(person, clothes, head, bg_image_loc, type, scale_min=0.15, scale_max=2,
+                     rotate_min=-180, rotate_max=180):
     """generate overlay image with resized person on blank alpha
 
     :param person: PIL RGBA image
@@ -208,9 +260,9 @@ def generate_overlay(person, clothes, head, bg_image_loc, type):
     person_size = person.size
     bg_size = image_size(bg_image_loc)
 
-    new_size = new_person_size(person_size, bg_size)
+    new_size = new_person_size(person_size, bg_size, scale_min, scale_max)
     new_xy = new_ul_location(new_size, bg_size)
-    new_rotation = random.uniform(0, 360)
+    new_rotation = random.uniform(rotate_min, rotate_max)
 
     if type == 'video':
         new_edge = min(bg_size)
@@ -218,32 +270,20 @@ def generate_overlay(person, clothes, head, bg_image_loc, type):
         new_xy = center_new_ul(new_size, bg_size)
         new_rotation = 0
 
-    resized_person = resize_image(person, new_size)
-    resized_person = rotate_image(resized_person, new_rotation)
+    overlay = new_part(person, new_size, new_rotation, new_xy, bg_size)
+    just_clothes = new_part(clothes, new_size, new_rotation, new_xy, bg_size)
 
-    resized_clothes = resize_image(clothes, new_size)
-    resized_clothes = rotate_image(resized_clothes, new_rotation)
-
-    overlay = blank_image(bg_size)
-    overlay.paste(resized_person, box=new_xy)
-
-    just_clothes = blank_image(bg_size)
-    just_clothes.paste(resized_clothes, box=new_xy)
-
-    head_mask = None
+    new_head = None
     if head is not None:
-        resized_head = resize_image(head, new_size)
-        resized_head = rotate_image(resized_head, new_rotation)
-        head_mask = blank_image(bg_size)
-        head_mask.paste(resized_head, box=new_xy)
+        new_head = new_part(head, new_size, new_rotation, new_xy, bg_size)
 
-    return overlay, just_clothes, head_mask
+    return overlay, just_clothes, new_head
 
 
 def generate_mask(foreground):
     """Generate 8bit grayscale mask image"""
     alpha = foreground.split()[-1]
-    mask = Image.new('L', bg.size, 0)
+    mask = Image.new('L', foreground.size, 0)
     mask.paste(alpha)
 
     return mask
@@ -251,7 +291,9 @@ def generate_mask(foreground):
 
 def make_image_uint8(image):
     """make sure image is 255, uint8 formatted"""
+    print('making uint8 from {}'.format(image.dtype))
     if image.dtype != 'uint8':
+        print('image.dtype is not uint8')
         if np.max(image) <= 1:
             image = image * 255
         image = image.astype('uint8')
@@ -267,45 +309,161 @@ def cdf_norm(array, bins):
     return cdf
 
 
-def match_background(foreground_img, background_img):
+def match_channels(foreground, background, n_bins):
+    """Use Histogram Matching to match foreground and background images by channel
+
+    :param foreground: 4 channel ndarray image (i.e. RGBA, LABA, etc)
+    :param background: background in same format as foreground
+    :param n_bins: number of bins to match (usually 255)
+    :return: histogram matched image in same format as original (RGBA etc)
+    """
+
+    # Ensure correct data types
+    assert foreground.dtype == background.dtype, 'foreground and background cannot be different dtypes'
+
+    matched = foreground.copy()
+    foreground_3 = foreground[:, :, :3]
+    foreground_alpha = foreground[:, :, 3]
+
+    for d in range(foreground_3.shape[2]):
+        f_hist, bins = np.histogram(foreground_3[:, :, d].flatten(), bins=n_bins, density=True,
+                                    weights=foreground_alpha.flatten())
+        b_hist, bins = np.histogram(background[:, :, d], bins=n_bins, density=True)
+
+        cdf_f = cdf_norm(f_hist, n_bins)
+        cdf_b = cdf_norm(b_hist, n_bins)
+
+        im2 = np.interp(foreground_3[:, :, d].flatten(), bins[:-1], cdf_f)
+        im3 = np.interp(im2, cdf_b, bins[:-1])
+
+        matched[:, :, d] = im3.reshape((foreground.shape[0], foreground.shape[1]))
+
+    return matched
+
+
+def match_background_rgb(foreground_img, background_img):
     """use histogram matching to match the foreground more closely to background
 
     :param foreground_img: ndimage 4 channel array
     :param background_img: ndimage
     :return: PIL RGBA image
     """
+
     foreground_img = as_ndarray(foreground_img)
     background_img = as_ndarray(background_img)
-
-    foreground = make_image_uint8(foreground_img)
-    foreground_rgb = foreground[:, :, :3]
-    foreground_a = foreground[:, :, 3]
-
-    background = make_image_uint8(background_img)
-
     n_bins = 255
 
-    matched = foreground.copy()
-
-    for d in range(foreground_rgb.shape[2]):
-        f_hist, bins = np.histogram(foreground_rgb[:, :, d].flatten(), bins=n_bins, density=True,
-                                    weights=foreground_a.flatten())
-        b_hist, bins = np.histogram(background[:, :, d], bins=n_bins, density=True)
-
-        cdf_f = cdf_norm(f_hist, n_bins)
-        cdf_b = cdf_norm(b_hist, n_bins)
-
-        im2 = np.interp(foreground_rgb[:, :, d].flatten(), bins[:-1], cdf_f)
-        im3 = np.interp(im2, cdf_b, bins[:-1])
-
-        matched[:, :, d] = im3.reshape((foreground.shape[0], foreground.shape[1]))
-
+    matched = match_channels(foreground_img, background_img, n_bins)
     matched = Image.fromarray(matched)
 
     return matched
 
 
+def match_background_lab(foreground_img, background_img):
+    """use lab histogram matching to match the foreground contrast more closely to background
+
+    :param foreground_img: ndimage 4 channel array
+    :param background_img: ndimage
+    :return: PIL RGBA image
+    """
+
+    foreground_img = as_ndarray(foreground_img)
+    background_img = as_ndarray(background_img)
+    n_bins = 255
+
+    foreground_img_lab = color.rgb2lab(foreground_img[:, :, :3])
+    background_img_lab = color.rgb2lab(background_img[:, :, :3])
+    foreground_alpha = np.expand_dims(foreground_img[:, :, 3], 2)
+    foreground_img_laba = np.concatenate((foreground_img_lab, foreground_alpha), axis=2)
+
+    matched = match_channels(foreground_img_laba, background_img_lab, n_bins)
+    matched_rgb = color.lab2rgb(matched[:, :, :3]) * 255
+    matched[:, :, :3] = matched_rgb[:, :, :3]
+    matched = Image.fromarray(matched.astype('uint8'))
+
+    return matched
+
+
+def match_background_hsv(foreground_img, background_img):
+    """use hsv histogram matching to match the foreground contrast more closely to background
+
+    :param foreground_img: ndimage 4 channel array
+    :param background_img: ndimage
+    :return: PIL RGBA image
+    """
+
+    foreground_img = as_ndarray(foreground_img)
+    background_img = as_ndarray(background_img)
+    n_bins = 255
+
+    foreground_img_hsv = color.rgb2hsv(foreground_img[:, :, :3])
+    background_img_hsv = color.rgb2hsv(background_img[:, :, :3])
+    foreground_alpha = np.expand_dims(foreground_img[:, :, 3], 2)
+    foreground_img_hsva = np.concatenate((foreground_img_hsv, foreground_alpha), axis=2)
+
+    matched = match_channels(foreground_img_hsva, background_img_hsv, n_bins)
+    matched_rgb = color.hsv2rgb(matched[:, :, :3]) * 255
+    matched[:, :, :3] = matched_rgb[:, :, :3]
+    matched = Image.fromarray(matched.astype('uint8'))
+
+    return matched
+
+
+def match_background_sat(foreground_img, background_img):
+    """histogram match just saturation
+
+    :param foreground_img: ndimage 4 channel array
+    :param background_img: ndimage
+    :return: PIL RGBA image
+    """
+
+    foreground_img = as_ndarray(foreground_img)
+    background_img = as_ndarray(background_img)
+    n_bins = 255
+
+    foreground_img_hsv = color.rgb2hsv(foreground_img[:, :, :3])
+    background_img_hsv = color.rgb2hsv(background_img[:, :, :3])
+    foreground_alpha = np.expand_dims(foreground_img[:, :, 3], 2)
+    foreground_img_hsva = np.concatenate((foreground_img_hsv, foreground_alpha), axis=2)
+
+    matched = match_channels(foreground_img_hsva, background_img_hsv, n_bins)
+    matched[:, :, 0] = foreground_img_hsv[:, :, 0]
+    matched[:, :, 2] = foreground_img_hsv[:, :, 2]
+    matched_rgb = color.hsv2rgb(matched[:, :, :3]) * 255
+    matched[:, :, :3] = matched_rgb[:, :, :3]
+    matched = Image.fromarray(matched.astype('uint8'))
+
+    return matched
+
+
+def match_background_sat_val(foreground_img, background_img):
+    """histogram match just saturation
+
+    :param foreground_img: ndimage 4 channel array
+    :param background_img: ndimage
+    :return: PIL RGBA image
+    """
+
+    foreground_img = as_ndarray(foreground_img)
+    background_img = as_ndarray(background_img)
+    n_bins = 255
+
+    foreground_img_hsv = color.rgb2hsv(foreground_img[:, :, :3])
+    background_img_hsv = color.rgb2hsv(background_img[:, :, :3])
+    foreground_alpha = np.expand_dims(foreground_img[:, :, 3], 2)
+    foreground_img_hsva = np.concatenate((foreground_img_hsv, foreground_alpha), axis=2)
+
+    matched = match_channels(foreground_img_hsva, background_img_hsv, n_bins)
+    matched[:, :, 0] = foreground_img_hsv[:, :, 0]
+    matched_rgb = color.hsv2rgb(matched[:, :, :3]) * 255
+    matched[:, :, :3] = matched_rgb[:, :, :3]
+    matched = Image.fromarray(matched.astype('uint8'))
+
+    return matched
+
+
 def random_crop(imgs, crop_factor=0.99, stddev=0.14):
+    # Randomly image to simulate handshake jitter
 
     # make sure all images have the same size
     img_arrays = map(np.array, imgs)
@@ -332,6 +490,35 @@ def random_crop(imgs, crop_factor=0.99, stddev=0.14):
     cropped_imgs = [i.crop([x1,y1,x2,y2]) for i in imgs]
     return cropped_imgs
 
+
+def mult_by_noise(image):
+    np_image = np.asarray(image)
+    new_image = np_image.copy()
+    np_image_rgb = np_image[:, :, :3]
+    noise = np.random.normal(loc=0.9, scale=0.1, size=np_image_rgb.shape)
+    noisy_image = np_image_rgb * noise
+    new_image[:, :, :3] = noisy_image[:, :, :3]
+
+    return Image.fromarray(new_image, mode='RGBA')
+
+
+def matching_method(foreground, background, method_setting):
+    if method_setting == 'RGB':
+        foreground = match_background_rgb(foreground, background)
+    elif method_setting == 'LAB':
+        foreground = match_background_lab(foreground, background)
+    elif method_setting == 'HSV':
+        foreground = match_background_hsv(foreground, background)
+    elif method_setting == 'SAT':
+        foreground = match_background_sat(foreground, background)
+    elif method_setting == 'SATVAL':
+        foreground = match_background_sat_val(foreground, background)
+    else:
+        print('no matching method specified')
+
+    return foreground
+
+
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--person', '-p', type=str, help='foreground person image', required=True)
@@ -348,36 +535,47 @@ if __name__ == '__main__':
     parser.add_argument('--seed', '-d', type=str, help='seed to use for video', default='')
     parser.add_argument('--head', '-z', type=str, help='if set, save head mask', default='')
     parser.add_argument('--head_out', '-w', type=str, help='output head mask', default='')
+    parser.add_argument('--p_text', '-e', type=str, help='path for pants textures if set', default='')
+    parser.add_argument('--s_text', '-x', type=str, help='path for shirt textures if set', default='')
+    parser.add_argument('--matching_method', '-u', type=str, help='method for matching fore/background', default='RGB')
+    parser.add_argument('--noise_type', '-q', type=str, help='noise type to use', default='')
     args = parser.parse_args()
 
     if args.type == 'video':
         random.seed(args.seed)
 
     bg = Image.open(args.background).convert('RGBA')
-    person, clothes, head = make_clothed_person(args.person, args.skin_path, args.shirt_path, args.pants_path, args.hair_path,
-                                          args.ao_path, args.head)
+    person, clothes, head = make_clothed_person(args.person, args.skin_path, args.shirt_path, args.pants_path,
+                                                args.hair_path, args.ao_path, args.head, args.p_text, args.s_text)
     foreground, clothes_mask, head_mask = generate_overlay(person, clothes, head, args.background, args.type)
 
-    # match foreground histogram to background image histogram
-    foreground = match_background(foreground, bg)
+    foreground = matching_method(foreground, bg, args.matching_method)
+
+    if args.noise_type == 'foreground':
+        foreground = mult_by_noise(foreground)
 
     comp = Image.alpha_composite(bg, foreground)
+
+    if args.noise_type == 'all':
+        comp = mult_by_noise(comp)
 
     # Set to foreground for all person mask, or clothes for clothing mask
     mask = generate_mask(foreground)
 
-    head_mask = generate_mask(head_mask)
-
-    # Randomly crop both mask and image to simulate handshake jitter
-    cropped = random_crop([comp, mask, head_mask])
-    # cropped = [comp, mask]
-
     timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')
     comp_id = 'simulant_{}'.format(timestamp)
+
     if args.out_name is not '':
         comp_id = args.out_name
+
+    if args.head_out is not '':
+        head_mask = generate_mask(head_mask)
+        cropped = random_crop([comp, mask, head_mask])
+        cropped[2].save(os.path.join(args.head_out, comp_id + '.png'))
+    else:
+        cropped = random_crop([comp, mask])
 
     # Save composite image, mask, and annotation
     cropped[0].save(os.path.join(args.composite, comp_id + '.png'))
     cropped[1].save(os.path.join(args.mask, comp_id + '.png'))
-    cropped[2].save(os.path.join(args.head_out, comp_id + '.png'))
+

@@ -23,17 +23,19 @@ def write_error(work_item, exception):
         err.write('\n')
 
 
-def work(work_item):
-    token_path = work_item['token'] + '.comp'
+def token_path(work_item):
+    return work_item['token'] + '.comp.rgb'
 
-    if os.path.exists(token_path):
+def work(work_item):
+
+    if composite_token_written(work_item):
         return
 
     command = work_item['command']
 
     try:
         subprocess.check_call(command)
-        write_token(token_path, 'ok')
+        write_token(token_path(work_item), 'ok')
     except Exception as e:
         write_error(work_item, e)
 
@@ -43,7 +45,7 @@ def render_token_written(work_item):
 
 
 def composite_token_written(work_item):
-    return os.path.exists(work_item['token'] + '.rgb')
+    return os.path.exists(token_path(work_item))
 
 
 if __name__ == '__main__':
@@ -64,6 +66,6 @@ if __name__ == '__main__':
 
     while not is_done():
         rendered_items = (i for i in work_items if render_token_written(i) and not composite_token_written(i))
-        Parallel(n_jobs=20)(delayed(work)(i) for i in rendered_items)
+        Parallel(n_jobs=10)(delayed(work)(i) for i in rendered_items)
 
         time.sleep(60)
