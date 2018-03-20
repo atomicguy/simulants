@@ -9,9 +9,7 @@ import colorsys
 import datetime
 import numpy as np
 
-from PIL import Image
-from PIL import ImageOps
-from PIL import ImageChops
+from PIL import Image, ImageOps, ImageChops
 from skimage import color
 from argparse import ArgumentParser
 
@@ -125,12 +123,14 @@ def colorize_hair(image, hair_mask):
 def mask2rgba(alpha_image):
     """Convert 'L' mode image to 'RGBA' as stack"""
     rgba = np.asarray(alpha_image)
-    rgba = np.stack((rgba, rgba, rgba, rgba), axis=2)
+    ones = np.ones(rgba.shape)
+    rgba = np.stack((ones, ones, ones, rgba), axis=2)
 
     return Image.fromarray(rgba.astype('uint8'))
 
 
-def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path, ao_path, head_path, p_text, s_text):
+def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path, ao_path, head_path,
+                        pants_tex_path, shirt_tex_path):
     """Generate composited, colorized image from layer paths"""
     image = Image.open(image_path).convert('RGBA')
     skin = Image.open(skin_path).convert('L')
@@ -150,9 +150,9 @@ def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path
 
     new_skin = combine_with_color(image, skin, skin_block(image, emoji_skin()))
 
-    if p_text is not '':
-        shirt_texture = Image.open(s_text).convert('RGBA')
-        pants_texture = Image.open(p_text).convert('RGBA')
+    if pants_tex_path is not '':
+        shirt_texture = Image.open(shirt_tex_path).convert('RGBA')
+        pants_texture = Image.open(pants_tex_path).convert('RGBA')
         new_shirt = combine_with_color(image, shirt, shirt_texture)
         new_pants = combine_with_color(image, pants, pants_texture)
     else:
@@ -534,8 +534,8 @@ if __name__ == '__main__':
     parser.add_argument('--seed', '-d', type=str, help='seed to use for video', default='')
     parser.add_argument('--head', '-z', type=str, help='if set, save head mask', default='')
     parser.add_argument('--head_out', '-w', type=str, help='output head mask', default='')
-    parser.add_argument('--p_text', '-e', type=str, help='path for pants textures if set', default='')
-    parser.add_argument('--s_text', '-x', type=str, help='path for shirt textures if set', default='')
+    parser.add_argument('--p_tex', '-e', type=str, help='path for pants textures if set', default='')
+    parser.add_argument('--s_tex', '-x', type=str, help='path for shirt textures if set', default='')
     parser.add_argument('--matching_method', '-u', type=str, help='method for matching fore/background', default='RGB')
     parser.add_argument('--noise_type', '-q', type=str, help='noise type to use', default='')
     args = parser.parse_args()
@@ -545,7 +545,7 @@ if __name__ == '__main__':
 
     bg = Image.open(args.background).convert('RGBA')
     person, clothes, head = make_clothed_person(args.person, args.skin_path, args.shirt_path, args.pants_path,
-                                                args.hair_path, args.ao_path, args.head, args.p_text, args.s_text)
+                                                args.hair_path, args.ao_path, args.head, args.p_tex, args.s_tex)
     foreground, clothes_mask, head_mask = generate_overlay(person, clothes, head, args.background, args.type)
 
     foreground = matching_method(foreground, bg, args.matching_method)
