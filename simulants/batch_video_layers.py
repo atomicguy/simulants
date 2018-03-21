@@ -18,15 +18,16 @@ def list_files(path_to_annotations, file_extension):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--input', '-i', type=str, help='path to directory of simulant blends', required=True)
-    parser.add_argument('--hdri', '-d', type=str, help='path to directory of hrdi source images', required=True)
+    parser.add_argument('--background', '-b', type=str, help='path to directory of hrdi source images', required=True)
     parser.add_argument('--output', '-o', type=str, help='path to output dir', required=True)
     parser.add_argument('--percent_size', '-p', type=str, help='precent size of 2048', required=True)
     parser.add_argument('--mocap_path', '-m', type=str, help='path to mocap bvh data files', required=True)
     parser.add_argument('--blend_save', '-s', type=str, help='if set, output of saved posed blend', default='')
+    parser.add_argument('--stride', '-t', type=str, help='stride of frames', default='5')
     args, _ = parser.parse_known_args()
 
     blend_list = list_files(args.input, 'blend')
-    hdri_list = list_files(args.hdri, 'jpg')
+    hdri_list = list_files(args.background, 'jpg')
     mocap_list = list_files(args.mocap_path, 'bvh')
     mocap_list = sorted(mocap_list)
 
@@ -53,5 +54,5 @@ if __name__ == '__main__':
                                '--percent_size', args.percent_size,
                                '--blend_save', args.blend_save,
                                '--animation', animation,
-                               '--stride', str(1)])
+                               '--stride', args.stride])
         i += 1

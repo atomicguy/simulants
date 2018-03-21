@@ -182,7 +182,7 @@ def blank_image(image_size):
     return blank
 
 
-def new_person_size(person_size, bg_size):
+def new_person_size(person_size, bg_size, min_factor, max_factor):
     """Generate new (random) size for the person image that will fit within the bg"""
     person_w = person_size[0]
     person_h = person_size[1]
@@ -190,8 +190,8 @@ def new_person_size(person_size, bg_size):
 
     bg_w = bg_size[0]
     bg_h = bg_size[1]
-    max_side = max(bg_w, bg_h) * 2
-    min_size = min(bg_w, bg_h) * 0.15
+    max_side = max(bg_w, bg_h) * max_factor
+    min_size = min(bg_w, bg_h) * min_factor
 
     new_w = int(random.uniform(min_size, max_side))
     new_size = (new_w, new_w)
@@ -241,14 +241,15 @@ def center_new_ul(person_size, bg_size):
 def new_part(image, new_size, new_rotation, new_xy, background_size):
     """Resize, rotate, and position image in a given background size"""
     resized_part = resize_image(image, new_size)
-    rotated_part = rotate_image(image, new_rotation)
+    rotated_part = rotate_image(resized_part, new_rotation)
     full_size = blank_image(background_size)
-    full_size.paste(resized_part, box=new_xy)
+    full_size.paste(rotated_part, box=new_xy)
 
     return full_size
 
 
-def generate_overlay(person, clothes, head, bg_image_loc, type):
+def generate_overlay(person, clothes, head, bg_image_loc, type, scale_min=0.15, scale_max=2,
+                     rotate_min=-180, rotate_max=180):
     """generate overlay image with resized person on blank alpha
 
     :param person: PIL RGBA image
@@ -259,9 +260,9 @@ def generate_overlay(person, clothes, head, bg_image_loc, type):
     person_size = person.size
     bg_size = image_size(bg_image_loc)
 
-    new_size = new_person_size(person_size, bg_size)
+    new_size = new_person_size(person_size, bg_size, scale_min, scale_max)
     new_xy = new_ul_location(new_size, bg_size)
-    new_rotation = random.uniform(0, 360)
+    new_rotation = random.uniform(rotate_min, rotate_max)
 
     if type == 'video':
         new_edge = min(bg_size)
@@ -282,7 +283,7 @@ def generate_overlay(person, clothes, head, bg_image_loc, type):
 def generate_mask(foreground):
     """Generate 8bit grayscale mask image"""
     alpha = foreground.split()[-1]
-    mask = Image.new('L', bg.size, 0)
+    mask = Image.new('L', foreground.size, 0)
     mask.paste(alpha)
 
     return mask

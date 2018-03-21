@@ -63,10 +63,10 @@ if __name__ == '__main__':
 
     for front, back in zip(frame_list, background_frames):
         person = os.path.join(input, 'image_combined', front)
-        skin = os.path.join(input, 'skin_material_index', front)
+        skin = os.path.join(input, 'body_material_index', front)
         shirt = os.path.join(input, 'shirt_material_index', front)
         pants = os.path.join(input, 'pants_material_index', front)
-        hair = os.path.join(input, 'skin_material_index', front)
+        hair = os.path.join(input, 'hair_material_index', front)
         ao = os.path.join(input, 'ambient_occlusion', front)
         head = os.path.join(input, 'head_material_index', front)
         background = os.path.join(background_video_dir, back)
@@ -86,7 +86,8 @@ if __name__ == '__main__':
                '--out_name', name,
                '--seed', seed,
                '--head', head,
-               '--head_out', head_dir]
+               '--head_out', head_dir,
+               '--matching_method', 'SAT']
 
         # print(cmd)
 
