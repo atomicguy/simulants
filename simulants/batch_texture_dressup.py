@@ -76,6 +76,12 @@ if __name__ == '__main__':
     head_dir = os.path.join(args.out_dir, 'heads')
     if not os.path.exists(head_dir):
         os.makedirs(head_dir)
+    cloth_dir = os.path.join(args.out_dir, 'cloth')
+    if not os.path.exists(cloth_dir):
+        os.makedirs(cloth_dir)
+    body_dir = os.path.join(args.out_dir, 'body')
+    if not os.path.exists(body_dir):
+        os.makedirs(body_dir)
 
 
     i = 1
@@ -108,7 +114,7 @@ if __name__ == '__main__':
                '--background', background,
                '--composite', comp_dir,
                '--mask', mask_dir,
-               '--head_out', head_dir,
+               '--head_out', args.out_dir,
                '--p_tex', pants_text,
                '--s_tex', shirt_text,
                '--matching_method', args.matching,

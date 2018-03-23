@@ -165,7 +165,7 @@ def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path
     comp = Image.alpha_composite(image, comp)
     comp = ImageChops.multiply(comp, ao)
 
-    return comp, clothes, head
+    return comp, clothes, head, body
 
 
 def image_size(image_path):
@@ -248,7 +248,7 @@ def new_part(image, new_size, new_rotation, new_xy, background_size):
     return full_size
 
 
-def generate_overlay(person, clothes, head, bg_image_loc, type, scale_min=0.15, scale_max=2,
+def generate_overlay(person, clothes, head, body, bg_image_loc, type, scale_min=0.15, scale_max=2,
                      rotate_min=-180, rotate_max=180):
     """generate overlay image with resized person on blank alpha
 
@@ -277,7 +277,11 @@ def generate_overlay(person, clothes, head, bg_image_loc, type, scale_min=0.15, 
     if head is not None:
         new_head = new_part(head, new_size, new_rotation, new_xy, bg_size)
 
-    return overlay, just_clothes, new_head
+    just_body = None
+    if body is not None:
+        just_body = new_part(body, new_size, new_rotation, new_xy, bg_size)
+
+    return overlay, just_clothes, new_head, just_body
 
 
 def generate_mask(foreground):
@@ -463,7 +467,7 @@ def match_background_sat_val(foreground_img, background_img):
 
 
 def random_crop(imgs, crop_factor=0.99, stddev=0.14):
-    # Randomly image to simulate handshake jitter
+    # Randomly crop image to simulate handshake jitter
 
     # make sure all images have the same size
     img_arrays = map(np.array, imgs)
@@ -487,7 +491,7 @@ def random_crop(imgs, crop_factor=0.99, stddev=0.14):
     assert y2 <= image_size[0]
 
     # crop the images
-    cropped_imgs = [i.crop([x1,y1,x2,y2]) for i in imgs]
+    cropped_imgs = [i.crop([x1, y1, x2, y2]) for i in imgs]
     return cropped_imgs
 
 
@@ -534,7 +538,7 @@ if __name__ == '__main__':
     parser.add_argument('--out_name', '-o', type=str, help='if set use this name for output', default='')
     parser.add_argument('--seed', '-d', type=str, help='seed to use for video', default='')
     parser.add_argument('--head', '-z', type=str, help='if set, save head mask', default='')
-    parser.add_argument('--head_out', '-w', type=str, help='output head mask', default='')
+    parser.add_argument('--head_out', '-w', type=str, help='output head, body, and cloth mask', default='')
     parser.add_argument('--p_tex', '-e', type=str, help='path for pants textures if set', default='')
     parser.add_argument('--s_tex', '-x', type=str, help='path for shirt textures if set', default='')
     parser.add_argument('--matching_method', '-u', type=str, help='method for matching fore/background', default='RGB')
@@ -545,9 +549,9 @@ if __name__ == '__main__':
         random.seed(args.seed)
 
     bg = Image.open(args.background).convert('RGBA')
-    person, clothes, head = make_clothed_person(args.person, args.skin_path, args.shirt_path, args.pants_path,
+    person, clothes, head, body = make_clothed_person(args.person, args.skin_path, args.shirt_path, args.pants_path,
                                                 args.hair_path, args.ao_path, args.head, args.p_tex, args.s_tex)
-    foreground, clothes_mask, head_mask = generate_overlay(person, clothes, head, args.background, args.type)
+    foreground, clothes_mask, head_mask, body_mask = generate_overlay(person, clothes, head, body, args.background, args.type)
 
     foreground = matching_method(foreground, bg, args.matching_method)
 
@@ -570,8 +574,12 @@ if __name__ == '__main__':
 
     if args.head_out is not '':
         head_mask = generate_mask(head_mask)
-        cropped = random_crop([comp, mask, head_mask])
-        cropped[2].save(os.path.join(args.head_out, comp_id + '.png'))
+        cloth_mask = generate_mask(clothes_mask)
+        body_mask = generate_mask(body_mask)
+        cropped = random_crop([comp, mask, head_mask, cloth_mask, body_mask])
+        cropped[2].save(os.path.join(args.head_out, 'heads', comp_id + '.png'))
+        cropped[3].save(os.path.join(args.head_out, 'cloth', comp_id + '.png'))
+        cropped[4].save(os.path.join(args.head_out, 'body', comp_id + '.png'))
     else:
         cropped = random_crop([comp, mask])
 
