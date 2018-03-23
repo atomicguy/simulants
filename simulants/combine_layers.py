@@ -140,6 +140,7 @@ def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path
     ao = Image.open(ao_path).convert('RGBA')
 
     new_hair = colorize_hair(image, hair)
+    just_skin = skin.copy()
 
     head = None
     if head_path is not '':
@@ -165,7 +166,7 @@ def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path
     comp = Image.alpha_composite(image, comp)
     comp = ImageChops.multiply(comp, ao)
 
-    return comp, clothes, head, body
+    return comp, clothes, head, mask2rgba(just_skin)
 
 
 def image_size(image_path):
