@@ -4,7 +4,6 @@ from __future__ import absolute_import
 
 import os
 import sys
-import uuid
 import random
 import numpy as np
 
@@ -110,30 +109,10 @@ def generate_person_overlay(simulant_id, background_path, simulant_dir, pattern_
                                                 layers['hair'], layers['ao'], layers['head'], pants_texture,
                                                 shirt_texture)
 
-    foreground, clothes_mask, head_mask, body_mask = generate_overlay(person, clothes, head, body, background_path, '',
+    person, clothes_mask, head_mask, body_mask = generate_overlay(person, clothes, head, body, background_path, '',
                                                            scale_min=0.1, scale_max=1.1)
 
-    return {'foreground': foreground, 'clothes': clothes_mask, 'head': head_mask}
-
-
-# def generate_number_overlays(number, simulant_dir, background_dir, patterns_dir):
-#     """Use random overlay to generate number of needed simulants for image
-#
-#     :param number: number simulant overlays to generate
-#     :param simulant_dir: directory of rendered simulant layers
-#     :param background_dir: directory of background images
-#     :param patterns_dir: directory of clothing texture patterns
-#     :return: dict {background: path_to_background, overlays: [{foreground, clothes_mask, head_mask}]}
-#     """
-#
-#     background = background_path(background_dir)
-#     overlays = []
-#     for i in range(number):
-#         sim_id = simulant_id(simulant_dir)
-#         overlay = generate_person_overlay(sim_id, background, simulant_dir, patterns_dir)
-#         overlays.append(overlay)
-#
-#     return {'background': background, 'overlays': overlays}
+    return {'person': person, 'clothes': clothes_mask, 'head': head_mask, 'body': body_mask}
 
 
 def ensure_dirs(path, name_list):
@@ -160,53 +139,43 @@ def mask_with_others(priors, mask, file_path):
     new_mask.save(file_path)
 
 
-# def write_images(comp_source, out_path, composite_id, matching_type):
-#     """Write composite images"""
-#
-#     paths = ensure_dirs(out_path, ['image', 'masks', 'heads', 'clothes'])
-#
-#     background_path = comp_source['background']
-#     overlays = comp_source['overlays']
-#
-#     bg = Image.open(background_path).convert('RGBA')
-#     plate = Image.new('RGBA', bg.size)
-#
-#     for count, overlay in enumerate(overlays):
-#         mask_id = '{}_{}.png'.format(composite_id, str(count).zfill(2))
-#         foreground = overlay['foreground']
-#         clothes = generate_mask(overlay['clothes'])
-#         head = generate_mask(overlay['head'])
-#         body_mask = generate_mask(foreground)
-#
-#         # Start with blank plate, updated on each run
-#         plate_mask = generate_mask(plate)
-#
-#         mask_with_others(plate_mask, body_mask, os.path.join(paths['masks'], mask_id))
-#         mask_with_others(plate_mask, clothes, os.path.join(paths['clothes'], mask_id))
-#         mask_with_others(plate_mask, head, os.path.join(paths['heads'], mask_id))
-#
-#         # Update plate with this mask to be used next loop
-#         plate = Image.alpha_composite(foreground, plate)
-#
-#     plate = matching_method(plate, bg, matching_type)
-#
-#     comp = Image.alpha_composite(bg, plate)
-#     comp.save(os.path.join(paths['image'], '{}.png'.format(composite_id)))
+def np_array_to_mask(numpy_array):
+    """Convert numpy array of ones and zeros into PIL 255 RGBA image"""
+    if np.max(numpy_array) > 1:
+        numpy_array = np.minimum(np.ones_like(numpy_array), numpy_array)
+    assert np.max(numpy_array) <= 1, 'max value is {}'.format(np.max(numpy_array))
+    assert np.min(numpy_array) == 0, 'min value is {}'.format(np.min(numpy_array))
+    mask_uint8 = (numpy_array * 255).astype(np.uint8)
+    ones = np.ones_like(mask_uint8) * 255
+    mask_rgba = np.stack([ones, ones, ones, mask_uint8], axis=2)
+    mask_rgba = Image.fromarray(mask_rgba).convert('RGBA')
+
+    return mask_rgba
 
 
-def all_annotations_mask(image_id_list):
+def num_annotations(image_id):
+    """Return an image with an annotation"""
+    annotation_ids = coco.getAnnIds(imgIds=image_id)
+
+    return len(annotation_ids)
+
+
+def all_annotations_mask(image_id_list, randomize=False):
     """Build mask of all Things in random coco image from list of ids"""
     image_id = random.choice(image_id_list)
+    while num_annotations(image_id) == 0:
+        image_id = random.choice(image_id_list)
     annotation_ids = coco.getAnnIds(imgIds=image_id)
     annotations = coco.loadAnns(annotation_ids)
     masks = [coco.annToMask(a) for a in annotations]
     mask_all_things = np.sum(masks, axis=0)
+    mask_all_things_rgba = np_array_to_mask(mask_all_things)
 
-    # convert mask to 255, uint8, RGBA image
-    mask_all_things = (mask_all_things * 255).astype(np.uint8)
-    mask_all_things = Image.fromarray(mask_all_things).convert('RGBA')
+    if randomize is True:
+        mask = random.choice(masks)
+        mask_all_things_rgba = np_array_to_mask(mask)
 
-    return mask_all_things, image_id
+    return mask_all_things_rgba, image_id
 
 
 def load_image(image_id, images_path):
@@ -217,6 +186,13 @@ def load_image(image_id, images_path):
     img = Image.open(image_path).convert('RGBA')
 
     return img, image_path
+
+
+def save_layer_mask(layers, layer_name, mask, comp_id, out_paths):
+    """Save specified layer with mask cut out of it"""
+    layer_mask = generate_mask(layers[layer_name])
+    occluded_mask = ImageChops.multiply(ImageChops.invert(mask), layer_mask)
+    occluded_mask.save(os.path.join(out_paths[layer_name], comp_id))
 
 
 if __name__ == '__main__':
@@ -237,7 +213,7 @@ if __name__ == '__main__':
     image_ids_with_people = coco.getImgIds(catIds = [1])
     image_ids_peoplefree = list(set(image_ids) - set(image_ids_with_people))
 
-    out_paths = ensure_dirs(args.out, ['image', 'person', 'heads', 'clothes', 'occlusion'])
+    out_paths = ensure_dirs(args.out, ['image', 'person', 'head', 'clothes', 'body', 'occlusion'])
 
     for i in range(args.number):
         progress_bar((i+1)/args.number)
@@ -247,26 +223,20 @@ if __name__ == '__main__':
 
         comp_id = '{}_{}.png'.format(image_id, sim_id)
 
-        bottom_layer = base_image.copy
-        top_layer = ImageChops.multiply(thing_mask, base_image)
-        middle_layers = generate_person_overlay(sim_id, base_path, args.simulant_dir, args.patterns)
-
+        blank = Image.new('RGBA', base_image.size)
+        top_layer = Image.composite(base_image, blank, thing_mask)
+        top_layer.save(os.path.join(out_paths['occlusion'], comp_id))
         top_mask = generate_mask(top_layer)
 
-        person = generate_mask(middle_layers['foreground'])
-        clothes = generate_mask(middle_layers['clothes'])
-        head = generate_mask(middle_layers['head'])
+        middle_layers = generate_person_overlay(sim_id, base_path, args.simulant_dir, args.patterns)
+        person = middle_layers['person']
+        person = matching_method(np.asarray(person), base_image, args.matching)
 
-        new_person = ImageChops.multiply(ImageChops.invert(top_mask), person)
-        new_clothes = ImageChops.multiply(ImageChops.invert(top_mask), clothes)
-        new_head = ImageChops.multiply(ImageChops.invert(top_mask), head)
+        save_layer_mask(middle_layers, 'person', top_mask, comp_id, out_paths)
+        save_layer_mask(middle_layers, 'clothes', top_mask, comp_id, out_paths)
+        save_layer_mask(middle_layers, 'head', top_mask, comp_id, out_paths)
+        save_layer_mask(middle_layers, 'body', top_mask, comp_id, out_paths)
 
-        top_two_layers = Image.alpha_composite(middle_layers['foreground'], top_layer)
-        # full_composite = Image.alpha_composite(top_two_layers, bottom_layer)
-        #
-        # full_composite.save(os.path.join(out_paths['image'], comp_id))
-        # new_person.save(os.path.join(out_paths['person'], comp_id))
-        # new_clothes.save(os.path.join(out_paths['clothes'], comp_id))
-        # new_head.save(os.path.join(out_paths['head'], comp_id))
-        # top_layer.save(os.path.join(out_paths['occlusion'], comp_id))
-        top_two_layers.save('/tmp/test.png')
+        top_two_layers = Image.alpha_composite(person, top_layer)
+        full_composite = Image.alpha_composite(base_image, top_two_layers)
+        full_composite.save(os.path.join(out_paths['image'], comp_id))
