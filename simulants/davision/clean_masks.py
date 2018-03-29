@@ -6,7 +6,7 @@ import os
 import sys
 import numpy as np
 
-from PIL import Image
+from PIL import Image, ImageChops
 from argparse import ArgumentParser
 
 
@@ -88,31 +88,50 @@ def split_masks(rgb_mask_path, out_path):
         mask_face.save(os.path.join(face_dir, '{}.png'.format(str(i).zfill(5))))
 
 
-def conform_cloth(cloth_masks_path, out_path):
-    file_list = sorted(image_list(cloth_masks_path))
+def save_frames(original_path, out_path):
+    frames = sorted(image_list(os.path.join(original_path, 'cloth')))
 
-    cloth_out_path = ensure_dir(os.path.join(out_path, 'cloth'))
-    print('writing cloth: {}'.format(cloth_out_path))
+    for i, frame in enumerate(frames):
+        progress_bar((i+1)/len(frames))
 
-    for i, cloth in enumerate(file_list):
-        cloth_path = os.path.join(cloth_masks_path, cloth)
-        cloth_img = Image.open(cloth_path).convert('L')
-        cloth_img.save(os.path.join(cloth_out_path, '{}.png'.format(str(i).zfill(5))))
+        cloth = Image.open(os.path.join(original_path, 'cloth', frame)).convert('L')
+        skin = Image.open(os.path.join(original_path, 'skin', frame)).convert('L')
+        face = Image.open(os.path.join(original_path, 'face', frame)).convert('L')
+        hair = Image.open(os.path.join(original_path, 'hair', frame)).convert('L')
+
+        new_cloth = ImageChops.multiply(cloth, ImageChops.invert(skin))
+        body = ImageChops.add(new_cloth, skin)
+
+        new_face = ImageChops.multiply(face, ImageChops.invert(body))
+        person = ImageChops.add(new_face, body)
+
+        new_hair = ImageChops.multiply(hair, ImageChops.invert(person))
+
+        skin_out = ensure_dir(os.path.join(out_path, 'skin'))
+        cloth_out = ensure_dir(os.path.join(out_path, 'cloth'))
+        face_out = ensure_dir(os.path.join(out_path, 'face'))
+        hair_out = ensure_dir(os.path.join(out_path, 'hair'))
+
+        skin.save(os.path.join(skin_out, frame))
+        new_cloth.save(os.path.join(cloth_out, frame))
+        new_face.save(os.path.join(face_out, frame))
+        new_hair.save(os.path.join(hair_out, frame))
 
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--sequences_path', '-m', type=str, help='directory of mask images to process')
-    parser.add_argument('--out_path', '-o', type=str, help='output path')
+    parser.add_argument('--original_sequences', type=str, help='directory of original masks images to process')
+    parser.add_argument('--out_path', type=str, help='output path')
     args, _ = parser.parse_known_args()
 
-    sequences = sorted(os.listdir(args.sequences_path))
-    for sequence in sequences:
-        instances = os.listdir(os.path.join(args.sequences_path, sequence))
-        for instance in instances:
-            rgb_masks_source = os.path.join(args.sequences_path, sequence, instance, 'rgb')
-            out_masks_target = os.path.join(args.out_path, sequence, instance)
-            split_masks(rgb_masks_source, out_masks_target)
-            cloth_path_source = os.path.join(args.sequences_path, sequence, instance, 'cloth')
-            conform_cloth(cloth_path_source, out_masks_target)
+    sequences = os.listdir(args.original_sequences)
 
+    for sequence in sequences:
+        print(sequence)
+        instances = os.listdir(os.path.join(args.original_sequences, sequence))
+
+        for instance in instances:
+            frames_path = os.path.join(args.original_sequences, sequence, instance)
+            out_path = ensure_dir(os.path.join(args.out_path, sequence, instance))
+
+            save_frames(frames_path, out_path)
