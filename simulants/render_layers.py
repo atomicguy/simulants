@@ -159,13 +159,13 @@ def make_mat_index_layers(tree, links, output, output_node, filename):
     new_mat_index_nodes(5, 'body', tree, links, output, output_node, filename)
 
 
-def make_depth_nodes(tree, links, output_node, filename):
-    """Normalize depth information and export"""
-    normalize_node = tree.nodes.new('CompositorNodeNormalize')
-    links.new(tree.nodes['Render Layers'].outputs['Depth'], normalize_node.inputs[0])
-    output_node.file_slots.new(name='depth')
-    output_node.file_slots[-1].path = 'depth_' + filename
-    links.new(normalize_node.outputs['Value'], output_node.inputs['depth'])
+def output_exr(tree, links, output_node, filename, render_name, out_name):
+    """Export layer as EXR"""
+    output_node.file_slots.new(name=out_name)
+    output_node.file_slots[-1].path = filename
+    output_node.file_slots[-1].use_node_format = False
+    output_node.file_slots[-1].format.file_format = 'OPEN_EXR'
+    links.new(tree.nodes['Render Layers'].outputs[render_name], output_node.inputs[out_name])
 
 
 def make_file_out_node(context, layers, image_out):
@@ -198,7 +198,13 @@ def make_file_out_node(context, layers, image_out):
             make_image_out_nodes(links, tree, output_node, output, filename)
 
         elif output == 'Depth':
-            make_depth_nodes(tree, links, output_node, filename)
+            output_exr(tree, links, output_node, filename, 'Depth', 'depth')
+
+        elif output == 'UV':
+            output_exr(tree, links, output_node, filename, 'UV', 'uv')
+
+        elif output == 'Normal':
+            output_exr(tree, links, output_node, filename, 'Normal', 'normal')
 
         else:
             output_node.file_slots.new(name=output)
@@ -309,9 +315,9 @@ def set_passes(context):
     rl.use_pass_combined = True
     rl.use_pass_z = True
     rl.use_pass_mist = False
-    rl.use_pass_normal = False
+    rl.use_pass_normal = True
     rl.use_pass_vector = True
-    rl.use_pass_uv = True
+    rl.use_pass_uv = False
     rl.use_pass_object_index = False
     rl.use_pass_material_index = True
     rl.use_pass_shadow = False
@@ -346,6 +352,40 @@ def set_render_settings(percent_size, tile_size):
     bpy.context.scene.cycles.transmission_bounces = 2
     bpy.context.scene.cycles.glossy_bounces = 2
     bpy.context.scene.cycles.max_bounces = 8
+
+
+def set_uv_passes(context):
+    """Enable/disable known render passes"""
+    nodes = context.scene.node_tree.nodes
+    for n in nodes:
+        nodes.remove(n)
+
+    rl = context.scene.render.layers['RenderLayer']
+
+    rl.use_pass_combined = False
+    rl.use_pass_z = False
+    rl.use_pass_mist = False
+    rl.use_pass_normal = False
+    rl.use_pass_vector = False
+    rl.use_pass_uv = True
+    rl.use_pass_object_index = False
+    rl.use_pass_material_index = False
+    rl.use_pass_shadow = False
+    rl.use_pass_ambient_occlusion = False
+
+
+def set_uv_render_settings(percent_size, tile_size):
+    """Set Cycles to known good render settings"""
+    bpy.data.scenes['Scene'].cycles.film_transparent = True
+    bpy.data.scenes['Scene'].render.resolution_percentage = percent_size
+    bpy.context.scene.render.tile_x = tile_size
+    bpy.context.scene.render.tile_y = tile_size
+
+    bpy.context.scene.render.layers[0].cycles.use_denoising = False
+    bpy.context.scene.render.layers[0].cycles.denoising_radius = 4
+    bpy.context.scene.cycles.sampling_pattern = 'CORRELATED_MUTI_JITTER'
+
+    bpy.context.scene.cycles.aa_samples = 1
 
 
 def randomize_shirt():
@@ -422,25 +462,42 @@ def set_mocap_camera():
     bpy.data.objects['Camera'].rotation_euler = (math.radians(90), 0, 0)
 
 
+def render_multi_pass(render_id, image_out, percent_size, tile_size, animation):
+    set_render_layers()
+    # Anti-Aliased Normal Render
+    set_passes(bpy.context)
+    set_output_nodes(bpy.context, render_id, image_out)
+    set_render_settings(percent_size, tile_size)
+    bpy.ops.render.render(animation=animation)
+
+    # UV layer render
+    set_uv_passes(bpy.context)
+    set_output_nodes(bpy.context, render_id, image_out)
+    set_uv_render_settings(percent_size, tile_size)
+    bpy.ops.render.render(animation=animation)
+
+
 def render_character(blend_in, background, image_out, percent_size, render_id, blend_save, animation, steps):
     """Import character, set up rendering, and render layers"""
     import_character(blend_in)
 
     hdri_lighting(background, 4)
-    set_render_layers()
-    set_passes(bpy.context)
-    set_output_nodes(bpy.context, render_id, image_out)
-    set_render_settings(percent_size, 32)
+    # set_render_layers()
+    # set_passes(bpy.context)
+    # set_output_nodes(bpy.context, render_id, image_out)
+    # set_render_settings(percent_size, 32)
 
     if animation is '':
         rotate_camera()
         fit_camera()
-        bpy.ops.render.render()
+        # bpy.ops.render.render()
+        render_multi_pass(render_id, image_out, percent_size, 32, False)
     else:
         set_mocap_camera()
         load_animation(animation)
         bpy.context.scene.frame_step = steps
-        bpy.ops.render.render(animation=True)
+        # bpy.ops.render.render(animation=True)
+        render_multi_pass(render_id, image_out, percent_size, 32, True)
 
     if blend_save is not '':
         bpy.ops.file.pack_all()
