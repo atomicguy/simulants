@@ -463,17 +463,19 @@ def set_mocap_camera():
 
 
 def render_multi_pass(render_id, image_out, percent_size, tile_size, animation):
+    # Set up material render layers for masks
     set_render_layers()
-    # Anti-Aliased Normal Render
-    set_passes(bpy.context)
-    set_output_nodes(bpy.context, render_id, image_out)
-    set_render_settings(percent_size, tile_size)
-    bpy.ops.render.render(animation=animation)
 
     # UV layer render
     set_uv_passes(bpy.context)
     set_output_nodes(bpy.context, render_id, image_out)
     set_uv_render_settings(percent_size, tile_size)
+    bpy.ops.render.render(animation=animation)
+
+    # Anti-Aliased Normal Render
+    set_passes(bpy.context)
+    set_output_nodes(bpy.context, render_id, image_out)
+    set_render_settings(percent_size, tile_size)
     bpy.ops.render.render(animation=animation)
 
 
