@@ -4,13 +4,16 @@ from __future__ import absolute_import
 
 import os
 import copy
+import Imath
 import random
+import OpenEXR
 import colorsys
 import datetime
 import numpy as np
 
 from PIL import Image, ImageOps, ImageChops
 from skimage import color
+from scipy import misc, ndimage
 from argparse import ArgumentParser
 
 
@@ -129,8 +132,98 @@ def mask2rgba(alpha_image):
     return Image.fromarray(rgba.astype('uint8'))
 
 
+def premultiply(channels):
+    """premultiply rgb channels by alpha (all presumed to be 0-255)"""
+
+    r = channels[0] / 255.0
+    g = channels[1] / 255.0
+    b = channels[2] / 255.0
+    a = channels[3] / 255.0
+
+    ra = r * a * 255
+    ga = g * a * 255
+    ba = b * a * 255
+
+    return [ra, ga, ba, a * 255]
+
+
+def map_texture(texture_path, uv_map, item_mask):
+    """Use given UV map to map texture within mask area
+
+    :param texture_path: path to a texture to use
+    :param uv_map: OpenEXR image
+    :param item_mask: PIL mode 'L' image (mask)
+    :return: PIL mode 'RGBA' mapped texture
+    """
+    texture = misc.imread(texture_path)
+    tex_size = texture.shape[0]
+
+    # EXR handling
+    pixel_type = Imath.PixelType(Imath.PixelType.FLOAT)
+    data_window = uv_map.header()['dataWindow']
+    size = (data_window.max.x - data_window.min.x + 1, data_window.max.y - data_window.min.y + 1)
+    x_raw = uv_map.channel('R', pixel_type)
+    y_raw = uv_map.channel('G', pixel_type)
+    x_norm = Image.frombytes('F', size, x_raw)
+    y_norm = Image.frombytes('F', size, y_raw)
+
+    x_map = np.asarray(x_norm) * tex_size
+    y_map = np.asarray(y_norm) * tex_size
+
+    uv = np.stack([x_map, y_map], axis=2)
+    uv = uv.transpose(2, 0, 1)
+
+    mapped_r = ndimage.map_coordinates(texture[:, :, 0], uv, prefilter=False, order=0)
+    mapped_g = ndimage.map_coordinates(texture[:, :, 1], uv, prefilter=False, order=0)
+    mapped_b = ndimage.map_coordinates(texture[:, :, 2], uv, prefilter=False, order=0)
+    mapped_a = np.asarray(item_mask)
+
+    # mapped_texture = np.stack([mapped_r, mapped_g, mapped_b, mapped_a], axis=2)
+
+    premult = premultiply([mapped_r, mapped_g, mapped_b, mapped_a])
+    mapped_texture = np.stack(premult, axis=2).astype(np.uint8)
+
+    return Image.fromarray(mapped_texture)
+
+
+def blend_overlay(base_img, overlay_img, opacity):
+    """Overlay blend of image and overlay image by factor of opacity
+
+    :param img_in: PIL 'RGBA' mode image
+    :param overlay_img: PIL 'RBBA' mode image
+    :param opacity: float [0,1]
+    :return: PIL RGBA
+    """
+    base_img = np.asarray(base_img).astype(np.float)
+    overlay_img = np.asarray(overlay_img).astype(np.float)
+
+    # sanity check of inputs
+    assert base_img.dtype.kind == 'f', 'Input variable img_in should be of numpy.float type.'
+    assert overlay_img.dtype.kind == 'f', 'Input variable overlay_img should be of numpy.float type.'
+    assert base_img.shape[2] == 4, 'Input variable img_in should be of shape [:, :,4].'
+    assert overlay_img.shape[2] == 4, 'Input variable overlay_img should be of shape [:, :,4].'
+    assert 0.0 <= opacity <= 1.0, 'Opacity needs to be between 0.0 and 1.0.'
+
+    base_img /= 255.0
+    overlay_img /= 255.0
+
+    comp_alpha = np.minimum(base_img[:, :, 3], overlay_img[:, :, 3]) * opacity
+    new_alpha = base_img[:, :, 3] + (1.0 - base_img[:, :, 3]) * comp_alpha
+    np.seterr(divide='ignore', invalid='ignore')
+    ratio = comp_alpha / new_alpha
+    ratio[ratio == np.NAN] = 0.0
+
+    comp = base_img[:,:,:3] * (base_img[:,:,:3] + (2 * overlay_img[:,:,:3]) * (1 - base_img[:,:,:3]))
+
+    ratio_rs = np.reshape(np.repeat(ratio, 3), [comp.shape[0], comp.shape[1], comp.shape[2]])
+    img_out = comp * ratio_rs + base_img[:, :, :3] * (1.0 - ratio_rs)
+    img_out = np.nan_to_num(np.dstack((img_out, base_img[:, :, 3])))  # add alpha channel and replace nans
+
+    return Image.fromarray((img_out * 255).astype(np.uint8), mode='RGBA')
+
+
 def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path, ao_path, head_path,
-                        pants_tex_path, shirt_tex_path):
+                        pants_tex_path, shirt_tex_path, uv_path):
     """Generate composited, colorized image from layer paths"""
     image = Image.open(image_path).convert('RGBA')
     skin = Image.open(skin_path).convert('L')
@@ -138,6 +231,7 @@ def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path
     pants = Image.open(pants_path).convert('L')
     hair = Image.open(hair_path).convert('L')
     ao = Image.open(ao_path).convert('RGBA')
+    uv = OpenEXR.InputFile(uv_path)
 
     new_hair = colorize_hair(image, hair)
     just_skin = skin.copy()
@@ -152,10 +246,8 @@ def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path
     new_skin = combine_with_color(image, skin, skin_block(image, emoji_skin()))
 
     if pants_tex_path is not '':
-        shirt_texture = Image.open(shirt_tex_path).convert('RGBA')
-        pants_texture = Image.open(pants_tex_path).convert('RGBA')
-        new_shirt = combine_with_color(image, shirt, shirt_texture)
-        new_pants = combine_with_color(image, pants, pants_texture)
+        new_shirt = map_texture(shirt_tex_path, uv, shirt)
+        new_pants = map_texture(pants_tex_path, uv, pants)
     else:
         new_shirt = combine_with_color(image, shirt, color_block(image))
         new_pants = combine_with_color(image, pants, color_block(image))
@@ -164,7 +256,8 @@ def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path
     body = Image.alpha_composite(new_skin, new_hair)
     comp = Image.alpha_composite(body, clothes)
     comp = Image.alpha_composite(image, comp)
-    comp = ImageChops.multiply(comp, ao)
+    # comp = ImageChops.multiply(comp, ao)
+    comp = blend_overlay(comp, ao, 0.85)
 
     return comp, clothes, head, mask2rgba(just_skin)
 
@@ -519,7 +612,7 @@ def matching_method(foreground, background, method_setting):
     elif method_setting == 'SATVAL':
         foreground = match_background_sat_val(foreground, background)
     else:
-        print('no matching method specified')
+        pass
 
     return foreground
 
@@ -535,11 +628,12 @@ if __name__ == '__main__':
     parser.add_argument('--background', '-b', type=str, help='background image', required=True)
     parser.add_argument('--composite', '-c', type=str, help='dir for composite output', required=True)
     parser.add_argument('--mask', '-m', type=str, help='dir for mask output', required=True)
+    parser.add_argument('--uv', '-v', type=str, help='path to exr uv map', required=True)
     parser.add_argument('--type', '-y', type=str, help='set to video if using sequence', default='')
     parser.add_argument('--out_name', '-o', type=str, help='if set use this name for output', default='')
     parser.add_argument('--seed', '-d', type=str, help='seed to use for video', default='')
     parser.add_argument('--head', '-z', type=str, help='if set, save head mask', default='')
-    parser.add_argument('--head_out', '-w', type=str, help='output head, body, and cloth mask', default='')
+    parser.add_argument('--parts_out', '-w', type=str, help='output head, body, and cloth mask', default='')
     parser.add_argument('--p_tex', '-e', type=str, help='path for pants textures if set', default='')
     parser.add_argument('--s_tex', '-x', type=str, help='path for shirt textures if set', default='')
     parser.add_argument('--matching_method', '-u', type=str, help='method for matching fore/background', default='RGB')
@@ -551,7 +645,7 @@ if __name__ == '__main__':
 
     bg = Image.open(args.background).convert('RGBA')
     person, clothes, head, body = make_clothed_person(args.person, args.skin_path, args.shirt_path, args.pants_path,
-                                                args.hair_path, args.ao_path, args.head, args.p_tex, args.s_tex)
+                                                args.hair_path, args.ao_path, args.head, args.p_tex, args.s_tex, args.uv)
     foreground, clothes_mask, head_mask, body_mask = generate_overlay(person, clothes, head, body, args.background, args.type)
 
     foreground = matching_method(foreground, bg, args.matching_method)
@@ -564,7 +658,7 @@ if __name__ == '__main__':
     if args.noise_type == 'all':
         comp = mult_by_noise(comp)
 
-    # Set to foreground for all person mask, or clothes for clothing mask
+    # Mask for entire foreground
     mask = generate_mask(foreground)
 
     timestamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S%f')
@@ -573,18 +667,17 @@ if __name__ == '__main__':
     if args.out_name is not '':
         comp_id = args.out_name
 
-    if args.head_out is not '':
+    if args.parts_out is not '':
         head_mask = generate_mask(head_mask)
         cloth_mask = generate_mask(clothes_mask)
         body_mask = generate_mask(body_mask)
         cropped = random_crop([comp, mask, head_mask, cloth_mask, body_mask])
-        cropped[2].save(os.path.join(args.head_out, 'heads', comp_id + '.png'))
-        cropped[3].save(os.path.join(args.head_out, 'cloth', comp_id + '.png'))
-        cropped[4].save(os.path.join(args.head_out, 'body', comp_id + '.png'))
+        cropped[2].save(os.path.join(args.parts_out, 'heads', comp_id + '.png'))
+        cropped[3].save(os.path.join(args.parts_out, 'cloth', comp_id + '.png'))
+        cropped[4].save(os.path.join(args.parts_out, 'body', comp_id + '.png'))
     else:
         cropped = random_crop([comp, mask])
 
     # Save composite image, mask, and annotation
     cropped[0].save(os.path.join(args.composite, comp_id + '.png'))
     cropped[1].save(os.path.join(args.mask, comp_id + '.png'))
-

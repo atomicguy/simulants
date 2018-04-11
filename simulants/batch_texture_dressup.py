@@ -98,6 +98,7 @@ if __name__ == '__main__':
         pants = os.path.join(args.input_dir, 'pants_material_index', base_name)
         hair = os.path.join(args.input_dir, 'hair_material_index', base_name)
         ao = os.path.join(args.input_dir, 'ambient_occlusion', base_name)
+        uv = os.path.join(args.input_dir, 'uv', os.path.splitext(base_name)[0] + '.exr')
 
         texture_list = list_files(args.texture, 'png')
         pants_text = os.path.join(args.texture, random.choice(texture_list))
@@ -114,7 +115,8 @@ if __name__ == '__main__':
                '--background', background,
                '--composite', comp_dir,
                '--mask', mask_dir,
-               '--head_out', args.out_dir,
+               '--uv', uv,
+               '--parts_out', args.out_dir,
                '--p_tex', pants_text,
                '--s_tex', shirt_text,
                '--matching_method', args.matching,
