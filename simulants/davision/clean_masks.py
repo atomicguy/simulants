@@ -60,32 +60,14 @@ def ensure_dir(dir_path):
     return dir_path
 
 
-def split_masks(rgb_mask_path, out_path):
-    file_list = sorted(image_list(rgb_mask_path))
-    print('reading: {}'.format(rgb_mask_path))
-    print('writing to: {}'.format(out_path))
+def test_masks(masks, frame_id):
+    sum_mask = np.asarray(masks[0])
+    sum_mask = np.zeros_like(sum_mask)
+    for mask in masks:
+        this_mask = np.asarray(mask)
+        sum_mask = sum_mask + this_mask
 
-    for i, mask in enumerate(file_list):
-        progress_bar((i+1)/len(file_list))
-        mask_path = os.path.join(rgb_mask_path, mask)
-        mask_img = Image.open(mask_path)
-        mask_np = np.asarray(mask_img)
-
-        mask_r = mask_np[:, :, 0]
-        mask_g = mask_np[:, :, 1]
-        mask_b = mask_np[:, :, 2]
-
-        mask_hair = Image.fromarray(mask_r, mode='L')
-        mask_skin = Image.fromarray(mask_g, mode='L')
-        mask_face = Image.fromarray(mask_b, mode='L')
-
-        hair_dir = ensure_dir(os.path.join(out_path, 'hair'))
-        skin_dir = ensure_dir(os.path.join(out_path, 'skin'))
-        face_dir = ensure_dir(os.path.join(out_path, 'face'))
-
-        mask_hair.save(os.path.join(hair_dir, '{}.png'.format(str(i).zfill(5))))
-        mask_skin.save(os.path.join(skin_dir, '{}.png'.format(str(i).zfill(5))))
-        mask_face.save(os.path.join(face_dir, '{}.png'.format(str(i).zfill(5))))
+    assert np.max(sum_mask) <= 255, 'max of {} on {}'.format(np.max(sum_mask), frame_id)
 
 
 def save_frames(original_path, out_path):
@@ -111,6 +93,9 @@ def save_frames(original_path, out_path):
         cloth_out = ensure_dir(os.path.join(out_path, 'cloth'))
         face_out = ensure_dir(os.path.join(out_path, 'face'))
         hair_out = ensure_dir(os.path.join(out_path, 'hair'))
+
+        masks = [skin, new_hair, new_cloth, new_face]
+        test_masks(masks, frame)
 
         skin.save(os.path.join(skin_out, frame))
         new_cloth.save(os.path.join(cloth_out, frame))
