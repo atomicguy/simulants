@@ -143,8 +143,8 @@ def np_array_to_mask(numpy_array):
     """Convert numpy array of ones and zeros into PIL 255 RGBA image"""
     if np.max(numpy_array) > 1:
         numpy_array = np.minimum(np.ones_like(numpy_array), numpy_array)
-    assert np.max(numpy_array) <= 1, 'max value is {}'.format(np.max(numpy_array))
-    assert np.min(numpy_array) == 0, 'min value is {}'.format(np.min(numpy_array))
+    # assert np.max(numpy_array) <= 1, 'max value is {}'.format(np.max(numpy_array))
+    # assert np.min(numpy_array) == 0, 'min value is {}'.format(np.min(numpy_array))
     mask_uint8 = (numpy_array * 255).astype(np.uint8)
     ones = np.ones_like(mask_uint8) * 255
     mask_rgba = np.stack([ones, ones, ones, mask_uint8], axis=2)
@@ -198,7 +198,6 @@ def save_layer_mask(layers, layer_name, mask, comp_id, out_paths):
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--simulant_dir', type=str, help='directory containing rendered simulant layers')
-    parser.add_argument('--backgrounds', type=str, help='directory containing background images')
     parser.add_argument('--patterns', type=str, help='directory of texture patterns')
     parser.add_argument('--out', type=str, help='directory for output composites')
     parser.add_argument('--matching', type=str, help='foreground / background matching method', default='SAT')
@@ -217,7 +216,7 @@ if __name__ == '__main__':
 
     for i in range(args.number):
         progress_bar((i+1)/args.number)
-        thing_mask, image_id = all_annotations_mask(image_ids_peoplefree)
+        thing_mask, image_id = all_annotations_mask(image_ids_peoplefree, randomize=True)
         base_image, base_path = load_image(image_id, args.coco_images)
         sim_id = simulant_id(args.simulant_dir)
 
