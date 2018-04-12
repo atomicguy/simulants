@@ -61,24 +61,22 @@ def as_ndarray(image):
     return image
 
 
-def isolate_item(rendered_image, item_mask):
-    """use given mask as an alpha for the rendered image
-    rendered_image: RGBA ndimage
-    item_mask: L ndimage
-    masked_image: PIL RGBA image
-    """
-    rendered_image = as_ndarray(rendered_image)
-    masked_image = copy.copy(rendered_image)
-    masked_image = np.asarray(masked_image)
-    masked_image[:, :, 3] = item_mask
-    masked_image = Image.fromarray(masked_image)
-    
-    return masked_image
-
-
 def combine_with_color(original_image, item, color_block):
-    rendered_item = isolate_item(original_image, item)
-    colored_item = ImageChops.multiply(rendered_item, color_block)
+    """multiply image by color
+
+    :param original_image: RGBA image
+    :param item: L mask
+    :param color_block: RGBA color block
+    :return: RGBA combined image
+    """
+    assert original_image.mode == 'RGBA', 'image mode is {}'.format(original_image.mode)
+    assert item.mode == 'L', 'mask mode is {}'.format(item.mode)
+    assert color_block.mode == 'RGBA', 'color block mode is {}'.format(color_block.mode)
+
+    colored_item = ImageChops.multiply(original_image, color_block)
+    r, g, b, a = colored_item.split()
+
+    masked_result = Image.merge('RGBA', (r, g, b, item))
 
     return colored_item
 
@@ -126,8 +124,8 @@ def colorize_hair(image, hair_mask):
     dark = random_hsv_color(0, mid_point)
     light = random_hsv_color(mid_point, 1)
     colorized = ImageOps.colorize(image, dark, light)
-    colorized = colorized.convert(mode='RGBA')
-    just_hair = isolate_item(colorized, hair_mask)
+    r, g, b = colorized.split()
+    just_hair = Image.merge('RGBA', (r, g, b, hair_mask))
 
     return just_hair
 
@@ -141,28 +139,12 @@ def mask2rgba(alpha_image):
     return Image.fromarray(rgba.astype('uint8'))
 
 
-# def premultiply(channels):
-#     """premultiply rgb channels by alpha (all presumed to be 0-255)"""
-#
-#     r = channels[0] / 255.0
-#     g = channels[1] / 255.0
-#     b = channels[2] / 255.0
-#     a = channels[3] / 255.0
-#
-#     ra = r * a * 255
-#     ga = g * a * 255
-#     ba = b * a * 255
-#
-#     return [ra, ga, ba, a * 255]
-
-
-def map_texture(texture_path, uv_map, item_mask):
+def map_texture(texture_path, uv_map):
     """Use given UV map to map texture within mask area
 
     :param texture_path: path to a texture to use
     :param uv_map: OpenEXR image
-    :param item_mask: PIL mode 'L' image (mask)
-    :return: PIL mode 'RGBA' mapped texture
+    :return: PIL mode 'RGB' mapped texture
     """
     texture = misc.imread(texture_path)
     tex_size = texture.shape[0]
@@ -185,11 +167,10 @@ def map_texture(texture_path, uv_map, item_mask):
     mapped_r = ndimage.map_coordinates(texture[:, :, 0], uv, prefilter=False, order=0)
     mapped_g = ndimage.map_coordinates(texture[:, :, 1], uv, prefilter=False, order=0)
     mapped_b = ndimage.map_coordinates(texture[:, :, 2], uv, prefilter=False, order=0)
-    mapped_a = np.asarray(item_mask)
 
-    mapped_texture = np.stack([mapped_r, mapped_g, mapped_b, mapped_a], axis=2)
+    mapped_texture = np.stack([mapped_r, mapped_g, mapped_b], axis=2)
 
-    return Image.fromarray(mapped_texture)
+    return Image.fromarray(mapped_texture, mode='RGB')
 
 
 def blend_overlay(base_img, overlay_img, opacity):
@@ -228,12 +209,12 @@ def blend_overlay(base_img, overlay_img, opacity):
     return Image.fromarray((img_out * 255).astype(np.uint8), mode='RGBA')
 
 
-def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path, ao_path, head_path,
+def make_clothed_person(image_path, body_path, shirt_path, pants_path, hair_path, ao_path, head_path,
                         pants_tex_path, shirt_tex_path, uv_path):
     """Generate compisited full person image with alpha
 
     :param image_path: path to base image (RGBA render of simulant)
-    :param skin_path: path to mask for skin
+    :param body_path: path to mask for body skin
     :param shirt_path: path to mask for shirt
     :param pants_path: path to mask for pants
     :param hair_path: path to mask for hair
@@ -242,62 +223,47 @@ def make_clothed_person(image_path, skin_path, shirt_path, pants_path, hair_path
     :param pants_tex_path: path to texture to use for pants
     :param shirt_tex_path: path to texture to use for shirt
     :param uv_path: path to EXR 32 bit UV render
-    :return:
+    :return: tuple of full composite, just clothes, just head, and non-head skin (RGBA PIL)
     """
     image = Image.open(image_path).convert('RGBA')
-    skin = Image.open(skin_path).convert('L')
-    shirt = Image.open(shirt_path).convert('L')
-    pants = Image.open(pants_path).convert('L')
-    hair = Image.open(hair_path).convert('L')
+    body_alpha = Image.open(body_path).convert('L')
+    shirt_alpha = Image.open(shirt_path).convert('L')
+    pants_alpha = Image.open(pants_path).convert('L')
+    hair_alpha = Image.open(hair_path).convert('L')
+    head_alpha = Image.open(head_path).convert('L')
     ao = Image.open(ao_path).convert('RGBA')
     uv = OpenEXR.InputFile(uv_path)
 
-    new_hair = colorize_hair(image, hair)
-    just_skin = skin.copy()
+    skin_mask = ImageChops.add(head_alpha, body_alpha)
+    colored_skin = combine_with_color(image, skin_mask, skin_block(image, emoji_skin()))
 
-    head = None
-    if head_path is not '':
-        head = Image.open(head_path).convert('RGBA')
-        skin = Image.alpha_composite(skin.convert(mode='RGBA'), head)
-        skin = skin.convert(mode='L')
-        head = Image.alpha_composite(head, mask2rgba(hair))
-
-    new_skin = combine_with_color(image, skin, skin_block(image, emoji_skin()))
+    colored_hair = colorize_hair(image, hair_alpha)
 
     if pants_tex_path is not '':
-        temp_shirt = map_texture(shirt_tex_path, uv, shirt)
-        new_shirt = isolate_item(temp_shirt, shirt)
-        new_pants = map_texture(pants_tex_path, uv, pants)
-        new_pants = isolate_item(new_pants, pants)
+        shirt_r, shirt_g, shirt_b = map_texture(shirt_tex_path, uv).split()
+        colored_shirt = Image.merge('RGBA', (shirt_r, shirt_g, shirt_b, shirt_alpha))
+        pants_r, pants_g, pants_b = map_texture(pants_tex_path, uv).split()
+        colored_pants = Image.merge('RGBA', (pants_r, pants_g, pants_b, pants_alpha))
+
     else:
-        new_shirt = combine_with_color(image, shirt, color_block(image))
-        new_pants = combine_with_color(image, pants, color_block(image))
+        colored_shirt = combine_with_color(image, shirt_alpha, color_block(image))
+        colored_pants = combine_with_color(image, pants_alpha, color_block(image))
 
-    # clothes = Image.alpha_composite(new_shirt, new_pants)
-    # body = Image.alpha_composite(new_skin, new_hair)
-    # comp = Image.alpha_composite(body, clothes)
-    # comp = Image.alpha_composite(image, comp)
+    colored_image = Image.alpha_composite(colored_skin, colored_hair)
+    colored_image = Image.alpha_composite(colored_image, colored_shirt)
+    colored_image = Image.alpha_composite(colored_image, colored_pants)
 
-    comp = Image.alpha_composite(image, new_skin)
-    comp = Image.alpha_composite(comp, new_hair)
-    comp = Image.alpha_composite(comp, new_shirt)
-    comp = Image.alpha_composite(comp, new_pants)
+    composite = blend_overlay(colored_image, ao, 0.85)
+    comp_r, comp_g, comp_b, _ = composite.split()
 
-    clothes = Image.alpha_composite(new_shirt, new_pants)
-    # person_mask = Image.alpha_composite(skin.convert('RGBA'), shirt.convert('RGBA'))
-    # person_mask = Image.alpha_composite(person_mask, pants.convert('RGBA'))
-    # person_mask = Image.alpha_composite(person_mask, hair.convert('RGBA'))
-    person_mask = ImageChops.add(skin, shirt)
-    person_mask = ImageChops.add(person_mask, pants)
-    person_mask = ImageChops.add(person_mask, hair)
+    whole_head_mask = ImageChops.add(hair_alpha, head_alpha)
+    clothes_mask = ImageChops.add(shirt_alpha, pants_alpha)
+    simulant_mask = ImageChops.add(whole_head_mask, clothes_mask)
+    simulant_mask = ImageChops.add(simulant_mask, body_alpha)
 
-    comp = blend_overlay(comp, ao, 0.85)
-    comp_r, comp_g, comp_b, comp_a = comp.split()
-    # _, _, _, mask_a = person_mask.split()
+    final_comp = Image.merge('RGBA', (comp_r, comp_g, comp_b, simulant_mask))
 
-    new_comp = Image.merge('RGBA', (comp_r, comp_g, comp_b, person_mask))
-
-    return new_comp, clothes, head, mask2rgba(just_skin)
+    return final_comp, clothes_mask, whole_head_mask, body_alpha
 
 
 def image_size(image_path):
@@ -332,14 +298,14 @@ def new_person_size(person_size, bg_size, min_factor, max_factor):
 
 
 def resize_image(image, new_size):
-    new_img = image.resize(new_size, resample=Image.BILINEAR)
+    new_img = image.resize(new_size, resample=Image.NEAREST)
 
     return new_img
 
 
 def rotate_image(image, angle):
     """Randomly rotate input image"""
-    rot_image = image.rotate(angle, resample=Image.BILINEAR)
+    rot_image = image.rotate(angle, resample=Image.NEAREST)
 
     return rot_image
 
@@ -380,21 +346,30 @@ def new_part(image, new_size, new_rotation, new_xy, background_size):
     return full_size
 
 
-def generate_overlay(person, clothes, head, body, bg_image_loc, type, scale_min=0.15, scale_max=2,
-                     rotate_min=-180, rotate_max=180):
-    """Generate rotated, scaled overlay of simulant sized to composite on top of background image
+def mask_layer(mask, new_size, new_rotation, new_xy, background_size):
+    resized_mask = resize_image(mask, new_size)
+    rotated_mask = rotate_image(resized_mask, new_rotation)
+    frame = Image.new('L', background_size)
+    frame.paste(rotated_mask, box=new_xy)
 
-    :param person: 
-    :param clothes:
-    :param head:
-    :param body:
-    :param bg_image_loc:
-    :param type:
-    :param scale_min:
-    :param scale_max:
-    :param rotate_min:
-    :param rotate_max:
-    :return:
+    return frame
+
+
+def generate_overlay(person, clothes_mask, head_mask, body_mask, bg_image_loc, type, scale_min=0.15, scale_max=2,
+                     rotate_min=-180, rotate_max=180):
+    """Generate randomly rotated, scaled overlay of simulant sized to composite on top of background image
+
+    :param person: RGBA PIL of composited simulant
+    :param clothes_mask: L PIL of clothes
+    :param head_mask: RGBA L of head
+    :param body_mask: RGBA L of body
+    :param bg_image_loc: path to background image
+    :param type: flag for video
+    :param scale_min: minimum scale of overlaid simulant
+    :param scale_max: maximum scale of overlaid simulant
+    :param rotate_min: minimum rotation of overlaid simulant
+    :param rotate_max: maximum rotation of overlaid simulant
+    :return: tuple of fully clothed simulant, just clothes, just head, and non-body skin (RGBA PIL)
     """
     person_size = person.size
     bg_size = image_size(bg_image_loc)
@@ -410,17 +385,11 @@ def generate_overlay(person, clothes, head, body, bg_image_loc, type, scale_min=
         new_rotation = 0
 
     overlay = new_part(person, new_size, new_rotation, new_xy, bg_size)
-    just_clothes = new_part(clothes, new_size, new_rotation, new_xy, bg_size)
+    clothes_overlay_mask = mask_layer(clothes_mask, new_size, new_rotation, new_xy, bg_size)
+    head_overlay_mask = mask_layer(head_mask, new_size, new_rotation, new_xy, bg_size)
+    body_overlay_mask = mask_layer(body_mask, new_size, new_rotation, new_xy, bg_size)
 
-    new_head = None
-    if head is not None:
-        new_head = new_part(head, new_size, new_rotation, new_xy, bg_size)
-
-    just_body = None
-    if body is not None:
-        just_body = new_part(body, new_size, new_rotation, new_xy, bg_size)
-
-    return overlay, just_clothes, new_head, just_body
+    return overlay, clothes_overlay_mask, head_overlay_mask, body_overlay_mask
 
 
 def generate_mask(foreground):
@@ -712,22 +681,17 @@ if __name__ == '__main__':
     if args.out_name is not '':
         comp_id = args.out_name
 
-    # if args.parts_out is not '':
-    #     head_mask = generate_mask(head_mask)
-    #     cloth_mask = generate_mask(clothes_mask)
-    #     body_mask = generate_mask(body_mask)
-    #     cropped = random_crop([comp, mask, head_mask, cloth_mask, body_mask])
-    #     cropped[2].save(os.path.join(args.parts_out, 'heads', comp_id + '.png'))
-    #     cropped[3].save(os.path.join(args.parts_out, 'cloth', comp_id + '.png'))
-    #     cropped[4].save(os.path.join(args.parts_out, 'body', comp_id + '.png'))
-    # else:
-    #     cropped = random_crop([comp, mask])
-    #
-    # # Save composite image, mask, and annotation
-    # cropped[0].save(os.path.join(args.composite, comp_id + '.png'))
-    # cropped[1].save(os.path.join(args.mask, comp_id + '.png'))
+    if args.parts_out is not '':
+        head_mask = generate_mask(head_mask)
+        cloth_mask = generate_mask(clothes_mask)
+        body_mask = generate_mask(body_mask)
+        cropped = random_crop([comp, mask, head_mask, cloth_mask, body_mask])
+        cropped[2].save(os.path.join(args.parts_out, 'heads', comp_id + '.png'))
+        cropped[3].save(os.path.join(args.parts_out, 'cloth', comp_id + '.png'))
+        cropped[4].save(os.path.join(args.parts_out, 'body', comp_id + '.png'))
+    else:
+        cropped = random_crop([comp, mask])
 
-    comp.save(os.path.join(args.composite, comp_id + '.png'))
-    person.save(os.path.join(args.parts_out, 'cloth', comp_id + '.png'))
-    cloth_mask = generate_mask(clothes_mask)
-    cloth_mask.save(os.path.join(args.mask, comp_id + '.png'))
+    # Save composite image, mask, and annotation
+    cropped[0].save(os.path.join(args.composite, comp_id + '.png'))
+    cropped[1].save(os.path.join(args.mask, comp_id + '.png'))
