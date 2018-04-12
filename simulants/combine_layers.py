@@ -223,7 +223,7 @@ def make_clothed_person(image_path, body_path, shirt_path, pants_path, hair_path
     :param pants_tex_path: path to texture to use for pants
     :param shirt_tex_path: path to texture to use for shirt
     :param uv_path: path to EXR 32 bit UV render
-    :return: tuple of full composite, just clothes, just head, and non-head skin (RGBA PIL)
+    :return: tuple of full composite (RGBA), clothes mask (L), head mask (L), and non-head skin mask (L)
     """
     image = Image.open(image_path).convert('RGBA')
     body_alpha = Image.open(body_path).convert('L')
@@ -347,6 +347,7 @@ def new_part(image, new_size, new_rotation, new_xy, background_size):
 
 
 def mask_layer(mask, new_size, new_rotation, new_xy, background_size):
+    """Create rotated, resized, positioned mask image"""
     resized_mask = resize_image(mask, new_size)
     rotated_mask = rotate_image(resized_mask, new_rotation)
     frame = Image.new('L', background_size)
@@ -369,7 +370,7 @@ def generate_overlay(person, clothes_mask, head_mask, body_mask, bg_image_loc, t
     :param scale_max: maximum scale of overlaid simulant
     :param rotate_min: minimum rotation of overlaid simulant
     :param rotate_max: maximum rotation of overlaid simulant
-    :return: tuple of fully clothed simulant, just clothes, just head, and non-body skin (RGBA PIL)
+    :return: tuple of fully clothed simulant (RGBA), clothes mask (L), head mask (L), and non-body skin mask (L)
     """
     person_size = person.size
     bg_size = image_size(bg_image_loc)
