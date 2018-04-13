@@ -1,19 +1,8 @@
 import os
-import random
-import datetime
+import glob
 import subprocess
 
 from argparse import ArgumentParser
-
-
-def list_files(path_to_annotations, file_extension):
-    """Get list of files in a given directory"""
-    file_list = []
-    for file in os.listdir(path_to_annotations):
-        if file.endswith('.' + file_extension):
-            file_list.append(os.path.join(path_to_annotations, file))
-    return file_list
-
 
 if __name__ == '__main__':
     parser = ArgumentParser()
@@ -21,7 +10,7 @@ if __name__ == '__main__':
     parser.add_argument('--out_path', '-o', type=str, help='path to output dir', required=True)
     args, _ = parser.parse_known_args()
 
-    mocap_list = list_files(args.mocap_dir, 'bvh')
+    mocap_list = glob.glob(args.mocap_dir + '*.bvh')
 
     for i, mocap in enumerate(sorted(mocap_list)):
         print('{} of {}'.format(i, len(mocap_list)))

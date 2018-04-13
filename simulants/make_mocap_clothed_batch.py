@@ -24,6 +24,7 @@ if __name__ == '__main__':
     parser.add_argument('--number', '-n', type=int, help='number of renders to generate', required=True)
     parser.add_argument('--out_dir', '-o', type=str, help='output directory for blends', required=True)
     parser.add_argument('--poses', '-p', type=str, help='list of pose paths', required=True)
+    parser.add_argument('--token_dir', '-t', type=str, default='/usr/local/share/datasets/simulants/mocap_clothed/tokens')
     args, _ = parser.parse_known_args()
 
     poses = get_list(args.poses)
@@ -41,7 +42,7 @@ if __name__ == '__main__':
                    '--pose_path', pose]
 
         job_id = '{}_{}'.format(datetime.datetime.now().strftime('%Y%m%d%H'), os.path.splitext(os.path.basename(pose))[0])
-        token = os.path.join('/usr/local/share/datasets/simulants/mocap_clothed/tokens', job_id)
+        token = os.path.join(args.token_dir, job_id)
 
         work_item = {'token': token, 'command': command}
         work_items.append(work_item)
