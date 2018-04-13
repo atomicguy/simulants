@@ -157,6 +157,7 @@ def make_mat_index_layers(tree, links, output, output_node, filename):
     new_mat_index_nodes(3, 'pants', tree, links, output, output_node, filename)
     new_mat_index_nodes(4, 'hair', tree, links, output, output_node, filename)
     new_mat_index_nodes(5, 'body', tree, links, output, output_node, filename)
+    new_mat_index_nodes(6, 'etc', tree, links, output, output_node, filename)
 
 
 def output_exr(tree, links, output_node, filename, render_name, out_name):
@@ -292,6 +293,11 @@ def set_render_layers():
     set_render_layer('tshirt', 2, ten_percent_gray)
     set_render_layer('pants', 3, ten_percent_gray)
     set_render_layer('hair', 4)
+    set_render_layer('MBlab_pupil', 6)
+    set_render_layer('MBlab_human_teeth', 6)
+    set_render_layer('MBlab_fur', 6)
+    set_render_layer('MBlab_human_eyes', 6)
+    set_render_layer('MBlab_cornea', 6)
 
 
 def set_output_nodes(context, render_id, image_name):

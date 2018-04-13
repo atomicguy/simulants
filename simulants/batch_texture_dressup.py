@@ -83,7 +83,6 @@ if __name__ == '__main__':
     if not os.path.exists(body_dir):
         os.makedirs(body_dir)
 
-
     i = 1
     for _ in range(args.num):
         progress_bar(i/args.num)
@@ -97,6 +96,7 @@ if __name__ == '__main__':
         shirt = os.path.join(args.input_dir, 'shirt_material_index', base_name)
         pants = os.path.join(args.input_dir, 'pants_material_index', base_name)
         hair = os.path.join(args.input_dir, 'hair_material_index', base_name)
+        etc = os.path.join(args.input_dir, 'etc_material_index', base_name)
         ao = os.path.join(args.input_dir, 'ambient_occlusion', base_name)
         uv = os.path.join(args.input_dir, 'uv', os.path.splitext(base_name)[0] + '.exr')
 
@@ -111,6 +111,7 @@ if __name__ == '__main__':
                '--shirt_path', shirt,
                '--pants_path', pants,
                '--hair_path', hair,
+               '--etc_path', etc,
                '--ao_path', ao,
                '--background', background,
                '--composite', comp_dir,

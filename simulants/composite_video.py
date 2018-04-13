@@ -8,6 +8,7 @@ import subprocess
 
 from argparse import ArgumentParser
 
+
 def get_file_list(path, extension):
     file_list = []
     for file in os.listdir(path):
@@ -39,6 +40,8 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--input', '-i', type=str, help='input directory containing mocap video layers', required=True)
     parser.add_argument('--background', '-b', type=str, help='path to background image', required=True)
+    parser.add_argument('--shirt_tex', '-s', type=str, help='path to shirt texture', required=True)
+    parser.add_argument('--pants_tex', '-p', type=str, help='path to pants texture', required=True)
     parser.add_argument('--output', '-o', type=str, help='output directory', required=True)
     args = parser.parse_args()
 
@@ -53,6 +56,8 @@ if __name__ == '__main__':
     composite_dir = out_dir(args.output, 'composite')
     mask_dir = out_dir(args.output, 'masks')
     head_dir = out_dir(args.output, 'heads')
+    out_dir(args.output, 'cloth')
+    out_dir(args.output, 'body')
 
     make_background_video(args.background, background_video_dir, num_frames)
     background_frames = sorted(get_file_list(background_video_dir, 'png'))
@@ -67,8 +72,10 @@ if __name__ == '__main__':
         shirt = os.path.join(input, 'shirt_material_index', front)
         pants = os.path.join(input, 'pants_material_index', front)
         hair = os.path.join(input, 'hair_material_index', front)
+        etc = os.path.join(input, 'etc_material_index', front)
         ao = os.path.join(input, 'ambient_occlusion', front)
         head = os.path.join(input, 'head_material_index', front)
+        uv = os.path.join(input, 'uv', os.path.splitext(front)[0] + '.exr')
         background = os.path.join(background_video_dir, back)
         name = front[:-4]
 
@@ -78,6 +85,7 @@ if __name__ == '__main__':
                '--shirt_path', shirt,
                '--pants_path', pants,
                '--hair_path', hair,
+               '--etc_path', etc,
                '--ao_path', ao,
                '--background', background,
                '--composite', composite_dir,
@@ -86,7 +94,10 @@ if __name__ == '__main__':
                '--out_name', name,
                '--seed', seed,
                '--head', head,
-               '--head_out', head_dir,
+               '--uv', uv,
+               '--parts_out', args.output,
+               '--p_tex', args.pants_tex,
+               '--s_tex', args.shirt_tex,
                '--matching_method', 'SAT']
 
         # print(cmd)

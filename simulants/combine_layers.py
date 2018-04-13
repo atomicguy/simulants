@@ -209,8 +209,27 @@ def blend_overlay(base_img, overlay_img, opacity):
     return Image.fromarray((img_out * 255).astype(np.uint8), mode='RGBA')
 
 
+def apply_uv_texture(texture_path, uv_map, base_image, alpha_mask):
+    """Apply texture using uv wrapping and texture from original render"""
+
+    mapped_texture = map_texture(texture_path, uv_map)
+    mapped_texture = ImageChops.multiply(mapped_texture, base_image.convert('RGB'))
+    t_r, t_g, t_b = mapped_texture.split()
+    mapped_with_alpha = Image.merge('RGBA', (t_r, t_g, t_b, alpha_mask))
+
+    return mapped_with_alpha
+
+
+def etc_layer(base_image, etc_alpha):
+    """Generate RGBA image of remaining parts"""
+    r, g, b, a = base_image.split()
+    etc = Image.merge('RGBA', (r, g, b, etc_alpha))
+
+    return etc
+
+
 def make_clothed_person(image_path, body_path, shirt_path, pants_path, hair_path, ao_path, head_path,
-                        pants_tex_path, shirt_tex_path, uv_path):
+                        pants_tex_path, shirt_tex_path, uv_path, etc_path):
     """Generate compisited full person image with alpha
 
     :param image_path: path to base image (RGBA render of simulant)
@@ -223,6 +242,7 @@ def make_clothed_person(image_path, body_path, shirt_path, pants_path, hair_path
     :param pants_tex_path: path to texture to use for pants
     :param shirt_tex_path: path to texture to use for shirt
     :param uv_path: path to EXR 32 bit UV render
+    :param etc_path: path to eyes/teeth/etc mask
     :return: tuple of full composite (RGBA), clothes mask (L), head mask (L), and non-head skin mask (L)
     """
     image = Image.open(image_path).convert('RGBA')
@@ -231,6 +251,7 @@ def make_clothed_person(image_path, body_path, shirt_path, pants_path, hair_path
     pants_alpha = Image.open(pants_path).convert('L')
     hair_alpha = Image.open(hair_path).convert('L')
     head_alpha = Image.open(head_path).convert('L')
+    etc_alpha = Image.open(etc_path).convert('L')
     ao = Image.open(ao_path).convert('RGBA')
     uv = OpenEXR.InputFile(uv_path)
 
@@ -240,16 +261,16 @@ def make_clothed_person(image_path, body_path, shirt_path, pants_path, hair_path
     colored_hair = colorize_hair(image, hair_alpha)
 
     if pants_tex_path is not '':
-        shirt_r, shirt_g, shirt_b = map_texture(shirt_tex_path, uv).split()
-        colored_shirt = Image.merge('RGBA', (shirt_r, shirt_g, shirt_b, shirt_alpha))
-        pants_r, pants_g, pants_b = map_texture(pants_tex_path, uv).split()
-        colored_pants = Image.merge('RGBA', (pants_r, pants_g, pants_b, pants_alpha))
+        colored_shirt = apply_uv_texture(shirt_tex_path, uv, image, shirt_alpha)
+        colored_pants = apply_uv_texture(pants_tex_path, uv, image, pants_alpha)
 
     else:
         colored_shirt = combine_with_color(image, shirt_alpha, color_block(image))
         colored_pants = combine_with_color(image, pants_alpha, color_block(image))
 
     colored_image = Image.alpha_composite(colored_skin, colored_hair)
+    colored_etc = etc_layer(image, etc_alpha)
+    colored_image = Image.alpha_composite(colored_image, colored_etc)
     colored_image = Image.alpha_composite(colored_image, colored_shirt)
     colored_image = Image.alpha_composite(colored_image, colored_pants)
 
@@ -260,6 +281,7 @@ def make_clothed_person(image_path, body_path, shirt_path, pants_path, hair_path
     clothes_mask = ImageChops.add(shirt_alpha, pants_alpha)
     simulant_mask = ImageChops.add(whole_head_mask, clothes_mask)
     simulant_mask = ImageChops.add(simulant_mask, body_alpha)
+    simulant_mask = ImageChops.add(simulant_mask, etc_alpha)
 
     final_comp = Image.merge('RGBA', (comp_r, comp_g, comp_b, simulant_mask))
 
@@ -639,6 +661,7 @@ if __name__ == '__main__':
     parser.add_argument('--shirt_path', '-t', type=str, help='path to shirt masks', required=True)
     parser.add_argument('--pants_path', '-n', type=str, help='path to pants masks', required=True)
     parser.add_argument('--hair_path', '-r', type=str, help='path to hair masks', required=True)
+    parser.add_argument('--etc_path', '-f', type=str, help='path to eye, teeth, etc mask', required=True)
     parser.add_argument('--ao_path', '-a', type=str, help='path to ambient occlusion', required=True)
     parser.add_argument('--background', '-b', type=str, help='background image', required=True)
     parser.add_argument('--composite', '-c', type=str, help='dir for composite output', required=True)
@@ -660,7 +683,8 @@ if __name__ == '__main__':
 
     bg = Image.open(args.background).convert('RGBA')
     person, clothes, head, body = make_clothed_person(args.person, args.skin_path, args.shirt_path, args.pants_path,
-                                                args.hair_path, args.ao_path, args.head, args.p_tex, args.s_tex, args.uv)
+                                                      args.hair_path, args.ao_path, args.head, args.p_tex, args.s_tex,
+                                                      args.uv, args.etc_path)
     foreground, clothes_mask, head_mask, body_mask = generate_overlay(person, clothes, head, body, args.background, args.type)
 
     foreground = matching_method(foreground, bg, args.matching_method)
