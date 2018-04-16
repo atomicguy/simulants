@@ -10,6 +10,7 @@ import OpenEXR
 import colorsys
 import datetime
 import numpy as np
+import tools.matching as match
 
 from PIL import Image, ImageOps, ImageChops
 from skimage import color
@@ -319,15 +320,30 @@ def new_person_size(person_size, bg_size, min_factor, max_factor):
     return new_size
 
 
-def resize_image(image, new_size):
-    new_img = image.resize(new_size, resample=Image.NEAREST)
+def sample_method(sampling):
+    """Return sampling method to use"""
+    if sampling == 'NEAREST':
+        method = Image.NEAREST
+    elif sampling == 'BILINEAR':
+        method = Image.BILINEAR
+    elif sampling == 'BICUBIC':
+        method = Image.BICUBIC
+    else:
+        method = ''
+
+    return method
+
+
+def resize_image(image, new_size, sampling):
+    method = sample_method(sampling)
+    new_img = image.resize(new_size, resample=method)
 
     return new_img
 
 
-def rotate_image(image, angle):
-    """Randomly rotate input image"""
-    rot_image = image.rotate(angle, resample=Image.NEAREST)
+def rotate_image(image, angle, sampling):
+    method = sample_method(sampling)
+    rot_image = image.rotate(angle, resample=method)
 
     return rot_image
 
@@ -358,28 +374,49 @@ def center_new_ul(person_size, bg_size):
     return (x, y)
 
 
-def new_part(image, new_size, new_rotation, new_xy, background_size):
+def new_part(image, new_size, new_rotation, new_xy, background_size, sampling):
     """Resize, rotate, and position image in a given background size"""
-    resized_part = resize_image(image, new_size)
-    rotated_part = rotate_image(resized_part, new_rotation)
+    resized_part = resize_image(image, new_size, sampling)
+    rotated_part = rotate_image(resized_part, new_rotation, sampling)
     full_size = blank_image(background_size)
     full_size.paste(rotated_part, box=new_xy)
 
     return full_size
 
 
-def mask_layer(mask, new_size, new_rotation, new_xy, background_size):
+def mask_layer(mask, new_size, new_rotation, new_xy, background_size, sampling):
     """Create rotated, resized, positioned mask image"""
-    resized_mask = resize_image(mask, new_size)
-    rotated_mask = rotate_image(resized_mask, new_rotation)
+    resized_mask = resize_image(mask, new_size, sampling)
+    rotated_mask = rotate_image(resized_mask, new_rotation, sampling)
     frame = Image.new('L', background_size)
     frame.paste(rotated_mask, box=new_xy)
 
     return frame
 
 
-def generate_overlay(person, clothes_mask, head_mask, body_mask, bg_image_loc, type, scale_min=0.15, scale_max=2,
-                     rotate_min=-180, rotate_max=180):
+def depth_array(file_path):
+    exr = OpenEXR.InputFile(file_path)
+    pixel_type = Imath.PixelType(Imath.PixelType.FLOAT)
+    dw = exr.header()['dataWindow']
+    size = (dw.max.x - dw.min.x + 1, dw.max.y - dw.min.y + 1)
+
+    z = exr.channel('R', pixel_type)
+    z = Image.frombytes('F', size, z)
+
+    return z
+
+
+def resized_depth(depth, new_size, new_rotation, new_xy, background_size):
+    resized_depth = resize_image(depth, new_size, 'NEAREST')
+    rotated_depth = rotate_image(resized_depth, new_rotation, 'NEAREST')
+    frame = Image.new('F', background_size)
+    frame.paste(rotated_depth, box=new_xy)
+
+    return frame
+
+
+def generate_overlay(person, clothes_mask, head_mask, body_mask, bg_image_loc, type, sampling, depth_path, scale_min=0.15,
+                     scale_max=2, rotate_min=-180, rotate_max=180):
     """Generate randomly rotated, scaled overlay of simulant sized to composite on top of background image
 
     :param person: RGBA PIL of composited simulant
@@ -388,6 +425,8 @@ def generate_overlay(person, clothes_mask, head_mask, body_mask, bg_image_loc, t
     :param body_mask: RGBA L of body
     :param bg_image_loc: path to background image
     :param type: flag for video
+    :param sampling: sampling method to use for rotation & scale
+    :param depth_path: path to exr depth map
     :param scale_min: minimum scale of overlaid simulant
     :param scale_max: maximum scale of overlaid simulant
     :param rotate_min: minimum rotation of overlaid simulant
@@ -396,6 +435,8 @@ def generate_overlay(person, clothes_mask, head_mask, body_mask, bg_image_loc, t
     """
     person_size = person.size
     bg_size = image_size(bg_image_loc)
+
+    depth = depth_array(depth_path)
 
     new_size = new_person_size(person_size, bg_size, scale_min, scale_max)
     new_xy = new_ul_location(new_size, bg_size)
@@ -407,12 +448,13 @@ def generate_overlay(person, clothes_mask, head_mask, body_mask, bg_image_loc, t
         new_xy = center_new_ul(new_size, bg_size)
         new_rotation = 0
 
-    overlay = new_part(person, new_size, new_rotation, new_xy, bg_size)
-    clothes_overlay_mask = mask_layer(clothes_mask, new_size, new_rotation, new_xy, bg_size)
-    head_overlay_mask = mask_layer(head_mask, new_size, new_rotation, new_xy, bg_size)
-    body_overlay_mask = mask_layer(body_mask, new_size, new_rotation, new_xy, bg_size)
+    overlay = new_part(person, new_size, new_rotation, new_xy, bg_size, sampling)
+    clothes_overlay_mask = mask_layer(clothes_mask, new_size, new_rotation, new_xy, bg_size, sampling)
+    head_overlay_mask = mask_layer(head_mask, new_size, new_rotation, new_xy, bg_size, sampling)
+    body_overlay_mask = mask_layer(body_mask, new_size, new_rotation, new_xy, bg_size, sampling)
+    new_depth = resized_depth(depth, new_size, new_rotation, new_xy, bg_size)
 
-    return overlay, clothes_overlay_mask, head_overlay_mask, body_overlay_mask
+    return overlay, clothes_overlay_mask, head_overlay_mask, body_overlay_mask, new_depth
 
 
 def generate_mask(foreground):
@@ -422,179 +464,6 @@ def generate_mask(foreground):
     mask.paste(alpha)
 
     return mask
-
-
-def make_image_uint8(image):
-    """make sure image is 255, uint8 formatted"""
-    print('making uint8 from {}'.format(image.dtype))
-    if image.dtype != 'uint8':
-        print('image.dtype is not uint8')
-        if np.max(image) <= 1:
-            image = image * 255
-        image = image.astype('uint8')
-
-    return image
-
-
-def cdf_norm(array, bins):
-    """find the normalized cumulative distribution of array"""
-    cdf = array.cumsum()
-    cdf = (bins * cdf / cdf[-1]).astype(np.uint8)
-
-    return cdf
-
-
-def match_channels(foreground, background, n_bins):
-    """Use Histogram Matching to match foreground and background images by channel
-
-    :param foreground: 4 channel ndarray image (i.e. RGBA, LABA, etc)
-    :param background: background in same format as foreground
-    :param n_bins: number of bins to match (usually 255)
-    :return: histogram matched image in same format as original (RGBA etc)
-    """
-
-    # Ensure correct data types
-    assert foreground.dtype == background.dtype, 'foreground and background cannot be different dtypes'
-
-    matched = foreground.copy()
-    foreground_3 = foreground[:, :, :3]
-    foreground_alpha = foreground[:, :, 3]
-
-    for d in range(foreground_3.shape[2]):
-        f_hist, bins = np.histogram(foreground_3[:, :, d].flatten(), bins=n_bins, density=True,
-                                    weights=foreground_alpha.flatten())
-        b_hist, bins = np.histogram(background[:, :, d], bins=n_bins, density=True)
-
-        cdf_f = cdf_norm(f_hist, n_bins)
-        cdf_b = cdf_norm(b_hist, n_bins)
-
-        im2 = np.interp(foreground_3[:, :, d].flatten(), bins[:-1], cdf_f)
-        im3 = np.interp(im2, cdf_b, bins[:-1])
-
-        matched[:, :, d] = im3.reshape((foreground.shape[0], foreground.shape[1]))
-
-    return matched
-
-
-def match_background_rgb(foreground_img, background_img):
-    """use histogram matching to match the foreground more closely to background
-
-    :param foreground_img: ndimage 4 channel array
-    :param background_img: ndimage
-    :return: PIL RGBA image
-    """
-
-    foreground_img = as_ndarray(foreground_img)
-    background_img = as_ndarray(background_img)
-    n_bins = 255
-
-    matched = match_channels(foreground_img, background_img, n_bins)
-    matched = Image.fromarray(matched)
-
-    return matched
-
-
-def match_background_lab(foreground_img, background_img):
-    """use lab histogram matching to match the foreground contrast more closely to background
-
-    :param foreground_img: ndimage 4 channel array
-    :param background_img: ndimage
-    :return: PIL RGBA image
-    """
-
-    foreground_img = as_ndarray(foreground_img)
-    background_img = as_ndarray(background_img)
-    n_bins = 255
-
-    foreground_img_lab = color.rgb2lab(foreground_img[:, :, :3])
-    background_img_lab = color.rgb2lab(background_img[:, :, :3])
-    foreground_alpha = np.expand_dims(foreground_img[:, :, 3], 2)
-    foreground_img_laba = np.concatenate((foreground_img_lab, foreground_alpha), axis=2)
-
-    matched = match_channels(foreground_img_laba, background_img_lab, n_bins)
-    matched_rgb = color.lab2rgb(matched[:, :, :3]) * 255
-    matched[:, :, :3] = matched_rgb[:, :, :3]
-    matched = Image.fromarray(matched.astype('uint8'))
-
-    return matched
-
-
-def match_background_hsv(foreground_img, background_img):
-    """use hsv histogram matching to match the foreground contrast more closely to background
-
-    :param foreground_img: ndimage 4 channel array
-    :param background_img: ndimage
-    :return: PIL RGBA image
-    """
-
-    foreground_img = as_ndarray(foreground_img)
-    background_img = as_ndarray(background_img)
-    n_bins = 255
-
-    foreground_img_hsv = color.rgb2hsv(foreground_img[:, :, :3])
-    background_img_hsv = color.rgb2hsv(background_img[:, :, :3])
-    foreground_alpha = np.expand_dims(foreground_img[:, :, 3], 2)
-    foreground_img_hsva = np.concatenate((foreground_img_hsv, foreground_alpha), axis=2)
-
-    matched = match_channels(foreground_img_hsva, background_img_hsv, n_bins)
-    matched_rgb = color.hsv2rgb(matched[:, :, :3]) * 255
-    matched[:, :, :3] = matched_rgb[:, :, :3]
-    matched = Image.fromarray(matched.astype('uint8'))
-
-    return matched
-
-
-def match_background_sat(foreground_img, background_img):
-    """histogram match just saturation
-
-    :param foreground_img: ndimage 4 channel array
-    :param background_img: ndimage
-    :return: PIL RGBA image
-    """
-
-    foreground_img = as_ndarray(foreground_img)
-    background_img = as_ndarray(background_img)
-    n_bins = 255
-
-    foreground_img_hsv = color.rgb2hsv(foreground_img[:, :, :3])
-    background_img_hsv = color.rgb2hsv(background_img[:, :, :3])
-    foreground_alpha = np.expand_dims(foreground_img[:, :, 3], 2)
-    foreground_img_hsva = np.concatenate((foreground_img_hsv, foreground_alpha), axis=2)
-
-    matched = match_channels(foreground_img_hsva, background_img_hsv, n_bins)
-    matched[:, :, 0] = foreground_img_hsv[:, :, 0]
-    matched[:, :, 2] = foreground_img_hsv[:, :, 2]
-    matched_rgb = color.hsv2rgb(matched[:, :, :3]) * 255
-    matched[:, :, :3] = matched_rgb[:, :, :3]
-    matched = Image.fromarray(matched.astype('uint8'))
-
-    return matched
-
-
-def match_background_sat_val(foreground_img, background_img):
-    """histogram match just saturation
-
-    :param foreground_img: ndimage 4 channel array
-    :param background_img: ndimage
-    :return: PIL RGBA image
-    """
-
-    foreground_img = as_ndarray(foreground_img)
-    background_img = as_ndarray(background_img)
-    n_bins = 255
-
-    foreground_img_hsv = color.rgb2hsv(foreground_img[:, :, :3])
-    background_img_hsv = color.rgb2hsv(background_img[:, :, :3])
-    foreground_alpha = np.expand_dims(foreground_img[:, :, 3], 2)
-    foreground_img_hsva = np.concatenate((foreground_img_hsv, foreground_alpha), axis=2)
-
-    matched = match_channels(foreground_img_hsva, background_img_hsv, n_bins)
-    matched[:, :, 0] = foreground_img_hsv[:, :, 0]
-    matched_rgb = color.hsv2rgb(matched[:, :, :3]) * 255
-    matched[:, :, :3] = matched_rgb[:, :, :3]
-    matched = Image.fromarray(matched.astype('uint8'))
-
-    return matched
 
 
 def random_crop(imgs, crop_factor=0.99, stddev=0.14):
@@ -639,15 +508,15 @@ def mult_by_noise(image):
 
 def matching_method(foreground, background, method_setting):
     if method_setting == 'RGB':
-        foreground = match_background_rgb(foreground, background)
+        foreground = match.match_background_rgb(foreground, background)
     elif method_setting == 'LAB':
-        foreground = match_background_lab(foreground, background)
+        foreground = match.match_background_lab(foreground, background)
     elif method_setting == 'HSV':
-        foreground = match_background_hsv(foreground, background)
+        foreground = match.match_background_hsv(foreground, background)
     elif method_setting == 'SAT':
-        foreground = match_background_sat(foreground, background)
+        foreground = match.match_background_sat(foreground, background)
     elif method_setting == 'SATVAL':
-        foreground = match_background_sat_val(foreground, background)
+        foreground = match.match_background_sat_val(foreground, background)
     else:
         pass
 
@@ -676,6 +545,8 @@ if __name__ == '__main__':
     parser.add_argument('--s_tex', '-x', type=str, help='path for shirt textures if set', default='')
     parser.add_argument('--matching_method', '-u', type=str, help='method for matching fore/background', default='RGB')
     parser.add_argument('--noise_type', '-q', type=str, help='noise type to use', default='')
+    parser.add_argument('--sample_method', '-g', type=str, help='sampling method to use for rotate/scale', default='NEAREST')
+    parser.add_argument('--depth', 'i', type=str, help='path to exr depth map', required=True)
     args = parser.parse_args()
 
     if args.type == 'video':
@@ -685,7 +556,8 @@ if __name__ == '__main__':
     person, clothes, head, body = make_clothed_person(args.person, args.skin_path, args.shirt_path, args.pants_path,
                                                       args.hair_path, args.ao_path, args.head, args.p_tex, args.s_tex,
                                                       args.uv, args.etc_path)
-    foreground, clothes_mask, head_mask, body_mask = generate_overlay(person, clothes, head, body, args.background, args.type)
+    foreground, clothes_mask, head_mask, body_mask, depth = generate_overlay(person, clothes, head, body, args.background,
+                                                                      args.type, args.sample_method, args.depth)
 
     foreground = matching_method(foreground, bg, args.matching_method)
 
@@ -720,3 +592,6 @@ if __name__ == '__main__':
     # Save composite image, mask, and annotation
     cropped[0].save(os.path.join(args.composite, comp_id + '.png'))
     cropped[1].save(os.path.join(args.mask, comp_id + '.png'))
+
+
+    # TODO: write out new depth image
