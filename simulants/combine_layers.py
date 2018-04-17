@@ -4,6 +4,7 @@ from __future__ import absolute_import
 
 import os
 import copy
+import math
 import Imath
 import random
 import OpenEXR
@@ -406,11 +407,18 @@ def depth_array(file_path):
     return z
 
 
-def resized_depth(depth, new_size, new_rotation, new_xy, background_size):
+def resized_depth(depth, new_size, new_rotation, new_xy, background_size, farthest=10000000000.0):
     resized_depth = resize_image(depth, new_size, 'NEAREST')
-    rotated_depth = rotate_image(resized_depth, new_rotation, 'NEAREST')
-    frame = Image.new('F', background_size)
-    frame.paste(rotated_depth, box=new_xy)
+    rotated_depth = resized_depth.rotate(new_rotation, resample=Image.NEAREST, expand=True)
+
+    # Fill in rotation area with background distance
+    rotated_array = np.asarray(rotated_depth)
+    depth_array = rotated_array.copy()
+    depth_array[depth_array == 0] = farthest
+    transformed_depth = Image.fromarray(depth_array, mode='F')
+
+    frame = Image.new('F', background_size, color=farthest)
+    frame.paste(transformed_depth, box=new_xy)
 
     return frame
 
@@ -472,7 +480,7 @@ def random_crop(imgs, crop_factor=0.99, stddev=0.14):
     # make sure all images have the same size
     img_arrays = map(np.array, imgs)
     sizes = [i.shape[0:2] for i in img_arrays]
-    assert len(set(sizes)) == 1
+    assert len(set(sizes)) == 1, 'sizes are {}'.format(sizes)
     image_size = np.array(sizes[0])
 
     # calculate cropped image size and a random offset from tl of the image
@@ -546,7 +554,7 @@ if __name__ == '__main__':
     parser.add_argument('--matching_method', '-u', type=str, help='method for matching fore/background', default='RGB')
     parser.add_argument('--noise_type', '-q', type=str, help='noise type to use', default='')
     parser.add_argument('--sample_method', '-g', type=str, help='sampling method to use for rotate/scale', default='NEAREST')
-    parser.add_argument('--depth', 'i', type=str, help='path to exr depth map', required=True)
+    parser.add_argument('--depth', '-i', type=str, help='path to exr depth map', required=True)
     args = parser.parse_args()
 
     if args.type == 'video':
@@ -582,16 +590,18 @@ if __name__ == '__main__':
         head_mask = generate_mask(head_mask)
         cloth_mask = generate_mask(clothes_mask)
         body_mask = generate_mask(body_mask)
-        cropped = random_crop([comp, mask, head_mask, cloth_mask, body_mask])
-        cropped[2].save(os.path.join(args.parts_out, 'heads', comp_id + '.png'))
-        cropped[3].save(os.path.join(args.parts_out, 'cloth', comp_id + '.png'))
-        cropped[4].save(os.path.join(args.parts_out, 'body', comp_id + '.png'))
+        cropped = random_crop([comp, mask, depth, head_mask, cloth_mask, body_mask])
+        cropped[3].save(os.path.join(args.parts_out, 'heads', comp_id + '.png'))
+        cropped[4].save(os.path.join(args.parts_out, 'cloth', comp_id + '.png'))
+        cropped[5].save(os.path.join(args.parts_out, 'body', comp_id + '.png'))
     else:
-        cropped = random_crop([comp, mask])
+        cropped = random_crop([comp, mask, depth])
 
     # Save composite image, mask, and annotation
     cropped[0].save(os.path.join(args.composite, comp_id + '.png'))
     cropped[1].save(os.path.join(args.mask, comp_id + '.png'))
-
-
-    # TODO: write out new depth image
+    depth_cropped = cropped[2]
+    exr = OpenEXR.OutputFile(os.path.join(args.parts_out, 'depth', comp_id + '.exr'),
+                             OpenEXR.Header(depth_cropped.size[0], depth_cropped.size[1]))
+    depth_cropped = np.asarray(depth_cropped)
+    exr.writePixels({'R': depth_cropped, 'G': depth_cropped, 'B': depth_cropped})

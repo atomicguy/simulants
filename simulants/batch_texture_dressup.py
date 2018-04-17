@@ -67,6 +67,7 @@ if __name__ == '__main__':
     parser.add_argument('--out_dir', '-o', type=str, help='output directory')
     args = parser.parse_args()
 
+    # make sure target directories exist
     comp_dir = os.path.join(args.out_dir, 'images')
     if not os.path.exists(comp_dir):
         os.makedirs(comp_dir)
@@ -82,6 +83,9 @@ if __name__ == '__main__':
     body_dir = os.path.join(args.out_dir, 'body')
     if not os.path.exists(body_dir):
         os.makedirs(body_dir)
+    depth_dir = os.path.join(args.out_dir, 'depth')
+    if not os.path.exists(depth_dir):
+        os.makedirs(depth_dir)
 
     i = 1
     for _ in range(args.num):
@@ -99,6 +103,7 @@ if __name__ == '__main__':
         etc = os.path.join(args.input_dir, 'etc_material_index', base_name)
         ao = os.path.join(args.input_dir, 'ambient_occlusion', base_name)
         uv = os.path.join(args.input_dir, 'uv', os.path.splitext(base_name)[0] + '.exr')
+        depth = os.path.join(args.input_dir, 'z', os.path.splitext(base_name)[0] + '.exr')
 
         texture_list = list_files(args.texture, 'png')
         pants_text = os.path.join(args.texture, random.choice(texture_list))
@@ -121,7 +126,8 @@ if __name__ == '__main__':
                '--p_tex', pants_text,
                '--s_tex', shirt_text,
                '--matching_method', args.matching,
-               '--noise_type', args.noise]
+               '--noise_type', args.noise,
+               '--depth', depth]
 
         subprocess.check_call(cmd)
         i += 1
