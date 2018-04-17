@@ -553,7 +553,7 @@ if __name__ == '__main__':
     parser.add_argument('--s_tex', '-x', type=str, help='path for shirt textures if set', default='')
     parser.add_argument('--matching_method', '-u', type=str, help='method for matching fore/background', default='RGB')
     parser.add_argument('--noise_type', '-q', type=str, help='noise type to use', default='')
-    parser.add_argument('--sample_method', '-g', type=str, help='sampling method to use for rotate/scale', default='NEAREST')
+    parser.add_argument('--sample_method', '-g', type=str, help='sampling method to use for rotate/scale', default='BILINEAR')
     parser.add_argument('--depth', '-i', type=str, help='path to exr depth map', required=True)
     args = parser.parse_args()
 

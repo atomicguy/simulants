@@ -76,6 +76,7 @@ if __name__ == '__main__':
         ao = os.path.join(input, 'ambient_occlusion', front)
         head = os.path.join(input, 'head_material_index', front)
         uv = os.path.join(input, 'uv', os.path.splitext(front)[0] + '.exr')
+        depth = os.path.join(input, 'depth', os.path.splitext(front)[0] + '.exr')
         background = os.path.join(background_video_dir, back)
         name = front[:-4]
 
@@ -98,7 +99,8 @@ if __name__ == '__main__':
                '--parts_out', args.output,
                '--p_tex', args.pants_tex,
                '--s_tex', args.shirt_tex,
-               '--matching_method', 'SAT']
+               '--matching_method', 'SAT',
+               '--depth', depth]
 
         # print(cmd)
 
