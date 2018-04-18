@@ -54,9 +54,9 @@ def generate_base_type():
     return base_type
 
 
-def generate_id(base_type):
-    date_stamp = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-    character_id = '{}_{}'.format(date_stamp, base_type)
+def generate_id(base_type, pose_id, hair_id):
+    date_stamp = datetime.datetime.now().strftime('%Y%m%d')
+    character_id = '{}_{}_{}_{}'.format(date_stamp, base_type, hair_id, pose_id)
 
     return character_id
 
@@ -209,30 +209,41 @@ def add_clothes(base_type, clothes_path, hair_path):
     hair_path = get_hair_path(hair_path, sex)
     append_item(hair_path, 'hair', human_mesh)
 
+    hair_id = os.path.splitext(os.path.basename(hair_path))[0]
 
-def randomize_pose():
-    """Pose character"""
-    pose = random.choice(pose_list)
-    print('using pose {}'.format(pose))
+    return hair_id
+
+
+def pose(pose_path):
+    # choose random default pose if not specified
+    if pose_path == '':
+        pose = random.choice(pose_list)
+        pose_path = os.path.join('data', 'poses', pose)
+
+    print('using pose {}'.format(pose_path))
     human = get_human_mesh()
     human.select = True
-    bpy.ops.mbast.pose_load(filepath=os.path.join('data', 'poses', pose))
+    bpy.ops.mbast.pose_load(filepath=pose_path)
+
+    pose_id = os.path.splitext(os.path.basename(pose_path))[0]
+
+    return pose_id
 
 
-def generate_character(out_dir, base_file, clothes_path, hair_path):
+def generate_character(out_dir, base_file, clothes_path, hair_path, pose_path):
     bpy.ops.wm.open_mainfile(filepath=base_file)
     base_type = generate_base_type()
-    character_id = generate_id(base_type)
     initialize_base(base_type)
     randomize_character(base_type)
     randomize_attributes()
     bpy.ops.mbast.finalize_character()
 
+    hair_id = add_clothes(base_type, clothes_path, hair_path)
 
-    add_clothes(base_type, clothes_path, hair_path)
+    # Set Pose
+    pose_id = pose(pose_path)
 
-    # Pose
-    randomize_pose()
+    character_id = generate_id(base_type, pose_id, hair_id)
 
     # Save blender file
     bpy.ops.file.pack_all()
@@ -259,10 +270,11 @@ if __name__ == '__main__':
                         default='data/clothes')
     parser.add_argument('--hair', '-a', type=str, help='path to hair blends', default='data/hairs')
     parser.add_argument('--out_dir', '-o', type=str, help='output directory for simulants', required=True)
+    parser.add_argument('--pose_path', '-p', type=str, help='if included, use a specified pose', default='')
 
     args, _ = parser.parse_known_args(argv)
 
     if not os.path.exists(args.out_dir):
         os.makedirs(args.out_dir)
 
-    generate_character(args.out_dir, args.base_file, args.clothing, args.hair)
+    generate_character(args.out_dir, args.base_file, args.clothing, args.hair, args.pose_path)
