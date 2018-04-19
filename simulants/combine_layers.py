@@ -230,6 +230,24 @@ def etc_layer(base_image, etc_alpha):
     return etc
 
 
+def mask_check(mask, name):
+    """Make sure mask is all 1s and 0s"""
+    mask_array = np.asarray(mask)
+    non_zero_mask = mask_array[np.nonzero(mask_array)]
+    fractional_mask = non_zero_mask[np.where(non_zero_mask < 1)]
+    num_nonzero = len(non_zero_mask)
+    num_fractional = len(fractional_mask)
+    assert num_fractional <= 0.01 * num_nonzero, '{} fractional values in {}'.format(num_fractional, name)
+
+
+def read_mask(mask_path):
+    """Read mask and check that it is binary"""
+    mask = Image.open(mask_path).convert('L')
+    mask_check(mask, mask_path)
+
+    return mask
+
+
 def make_clothed_person(image_path, body_path, shirt_path, pants_path, hair_path, ao_path, head_path,
                         pants_tex_path, shirt_tex_path, uv_path, etc_path):
     """Generate compisited full person image with alpha
@@ -248,14 +266,14 @@ def make_clothed_person(image_path, body_path, shirt_path, pants_path, hair_path
     :return: tuple of full composite (RGBA), clothes mask (L), head mask (L), and non-head skin mask (L)
     """
     image = Image.open(image_path).convert('RGBA')
-    body_alpha = Image.open(body_path).convert('L')
-    shirt_alpha = Image.open(shirt_path).convert('L')
-    pants_alpha = Image.open(pants_path).convert('L')
-    hair_alpha = Image.open(hair_path).convert('L')
-    head_alpha = Image.open(head_path).convert('L')
-    etc_alpha = Image.open(etc_path).convert('L')
     ao = Image.open(ao_path).convert('RGBA')
     uv = OpenEXR.InputFile(uv_path)
+    body_alpha = read_mask(body_path)
+    shirt_alpha = read_mask(shirt_path)
+    pants_alpha = read_mask(pants_path)
+    hair_alpha = read_mask(hair_path)
+    head_alpha = read_mask(head_path)
+    etc_alpha = read_mask(etc_path)
 
     skin_mask = ImageChops.add(head_alpha, body_alpha)
     colored_skin = combine_with_color(image, skin_mask, skin_block(image, emoji_skin()))
