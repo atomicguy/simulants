@@ -23,7 +23,7 @@ from pycocotools.coco import COCO
 
 def patterns_path(pattern_dir):
     """Return a random texture path"""
-    patterns = common.read_in_files(pattern_dir, 'png', return_paths=True)
+    patterns = common.find_filepaths(pattern_dir, 'png')
     patterns = sorted(patterns)
 
     return random.choice(patterns)
@@ -31,7 +31,7 @@ def patterns_path(pattern_dir):
 
 def background_path(background_dir):
     """Return random background image"""
-    backgrounds = common.read_in_files(background_dir, 'jpg', return_paths=True)
+    backgrounds = common.find_filepaths(background_dir, 'jpg')
     backgrounds = sorted(backgrounds)
 
     return random.choice(backgrounds)
@@ -39,7 +39,7 @@ def background_path(background_dir):
 
 def simulant_id(simulant_dir):
     """Return random simulant id"""
-    simulant_paths = common.read_in_files(os.path.join(simulant_dir, 'image_combined'), 'png', return_paths=True)
+    simulant_paths = common.find_filepaths(os.path.join(simulant_dir, 'image_combined'), 'png')
     simulant_paths = sorted(simulant_paths)
     simulant_path = random.choice(simulant_paths)
 
