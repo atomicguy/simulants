@@ -277,6 +277,17 @@ def set_material_diffuse_color(material, color):
     shirt_diffuse = mat_nodes.get('Diffuse BSDF')
     shirt_diffuse.inputs['Color'].default_value = color
 
+    # Adding wrinkle map
+    noise_tex = mat_nodes.new(type='ShaderNodeTexNoise')
+    noise_tex.inputs['Scale'].default_value = 5.0
+    noise_tex.inputs['Detail'].default_value = 2
+    noise_tex.inputs['Distortion'].default_value = 3.6
+
+    # Link wrinkles to displacement
+    output = mat_nodes.get('Material Output')
+    links = material.node_tree.links
+    links.new(noise_tex.outputs['Fac'], output.inputs['Displacement'])
+
 
 def set_render_layer(name, index, color=None):
     """Set material of name to specified index"""
@@ -305,7 +316,6 @@ def set_output_nodes(context, render_id, image_name):
     full_rgb_path = os.path.join(image_name, 'rgba_comp', render_id + '_')
     print('full rgb: {}'.format(full_rgb_path))
     bpy.context.scene.render.filepath = full_rgb_path
-    # bpy.data.scenes['Scene'].render.filepath = full_rgb_path
     layers = get_layers_and_passes(context, render_id)
     make_file_out_node(context, layers, image_name)
 
@@ -489,22 +499,16 @@ def render_character(blend_in, background, image_out, percent_size, render_id, b
     """Import character, set up rendering, and render layers"""
     import_character(blend_in)
 
-    hdri_lighting(background, 4)
-    # set_render_layers()
-    # set_passes(bpy.context)
-    # set_output_nodes(bpy.context, render_id, image_out)
-    # set_render_settings(percent_size, 32)
+    hdri_lighting(background, 3)
 
     if animation is '':
         rotate_camera()
         fit_camera()
-        # bpy.ops.render.render()
         render_multi_pass(render_id, image_out, percent_size, 32, False)
     else:
         set_mocap_camera()
         load_animation(animation)
         bpy.context.scene.frame_step = steps
-        # bpy.ops.render.render(animation=True)
         render_multi_pass(render_id, image_out, percent_size, 32, True)
 
     if blend_save is not '':
