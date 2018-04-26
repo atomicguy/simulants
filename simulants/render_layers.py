@@ -267,6 +267,55 @@ def make_all_skin():
     generic_slot.material = skin_material
 
 
+def set_node_values(node, values):
+    """Set the default values of inputs from values dict"""
+    for input_port, value in values.items():
+        node.inputs[input_port].default_value = value
+
+
+def link_nodes(node_group, from_node, out_port, to_node, in_port):
+    """link two nodes in a given node object"""
+    links = node_group.node_tree.links
+    links.new(from_node.outputs[out_port], to_node.inputs[in_port])
+
+
+def add_wrinkles(material):
+
+    # { 'nodes' : [
+    #     {'type': 'ShaderNodeTexNoise',
+    #      'inputs': [
+    #          {'Scale' : 5.0}
+    #      ],
+    #      'id': 'noise_0'}
+    # ],
+    # 'links' : [
+    #     {'from': 'noise_0','output_port': 'Fac', 'to': '__output', 'input_port': 'Displacement'}]
+    # ]}
+
+    mat_nodes = material.node_tree.nodes
+    output = mat_nodes.get('Material Output')
+
+    # # Make noise wrinkles
+    # noise_tex = mat_nodes.new(type='ShaderNodeTexNoise')
+    # noise_values = {'Scale': 5.0, 'Detail': 2, 'Distortion': 3.6}
+    # set_node_values(noise_tex, noise_values)
+    #
+    # # Link wrinkles to displacement
+    # link_nodes(material, noise_tex, 'Fac', output, 'Displacement')
+
+    wave_tex = mat_nodes.new(type='ShaderNodeTexWave')
+    wave_vals = {'Scale': 30, 'Distortion': 1.1, 'Detail': 2, 'Detail Scale': 1}
+    set_node_values(wave_tex, wave_vals)
+
+    noise_tex = mat_nodes.new(type='ShaderNodeTexNoise')
+    noise_vals = {'Scale': 15.2, 'Detail': 2, 'Distortion': 1.5}
+    set_node_values(noise_tex, noise_vals)
+    link_nodes(material, noise_tex, 'Fac', wave_tex, 'Scale')
+
+    link_nodes(material, wave_tex, 'Fac', output, 'Displacement')
+
+
+
 def set_material_diffuse_color(material, color):
     """Set Diffuse BSDF color chanel to specified color
 
@@ -277,32 +326,23 @@ def set_material_diffuse_color(material, color):
     shirt_diffuse = mat_nodes.get('Diffuse BSDF')
     shirt_diffuse.inputs['Color'].default_value = color
 
-    # Adding wrinkle map
-    noise_tex = mat_nodes.new(type='ShaderNodeTexNoise')
-    noise_tex.inputs['Scale'].default_value = 5.0
-    noise_tex.inputs['Detail'].default_value = 2
-    noise_tex.inputs['Distortion'].default_value = 3.6
 
-    # Link wrinkles to displacement
-    output = mat_nodes.get('Material Output')
-    links = material.node_tree.links
-    links.new(noise_tex.outputs['Fac'], output.inputs['Displacement'])
-
-
-def set_render_layer(name, index, color=None):
+def set_render_layer(name, index, color=None, wrinkles=False):
     """Set material of name to specified index"""
     mat = get_blend_mat(name)
     mat.pass_index = index
     if color:
         set_material_diffuse_color(mat, color)
+    if wrinkles:
+        add_wrinkles(mat)
 
 
 def set_render_layers():
     """Set indices of render layers"""
     set_render_layer('MBlab_human_skin', 1)
     ten_percent_gray = (0.9, 0.9, 0.9, 1)
-    set_render_layer('tshirt', 2, ten_percent_gray)
-    set_render_layer('pants', 3, ten_percent_gray)
+    set_render_layer('tshirt', 2, ten_percent_gray, wrinkles=True)
+    set_render_layer('pants', 3, ten_percent_gray, wrinkles=True)
     set_render_layer('hair', 4)
     set_render_layer('MBlab_pupil', 6)
     set_render_layer('MBlab_human_teeth', 6)
@@ -474,7 +514,7 @@ def load_animation(animation_path):
 
 
 def set_mocap_camera():
-    bpy.data.objects['Camera'].location = (0, -5, 1.5)
+    bpy.data.objects['Camera'].location = (0, -5, 1.7)
     bpy.data.objects['Camera'].rotation_euler = (math.radians(90), 0, 0)
 
 
@@ -499,7 +539,7 @@ def render_character(blend_in, background, image_out, percent_size, render_id, b
     """Import character, set up rendering, and render layers"""
     import_character(blend_in)
 
-    hdri_lighting(background, 3)
+    hdri_lighting(background, 1)
 
     if animation is '':
         rotate_camera()
