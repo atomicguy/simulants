@@ -337,12 +337,12 @@ def set_render_layer(name, index, color=None, wrinkles=False):
         add_wrinkles(mat)
 
 
-def set_render_layers():
+def set_render_layers(wrinkles=False):
     """Set indices of render layers"""
     set_render_layer('MBlab_human_skin', 1)
     ten_percent_gray = (0.9, 0.9, 0.9, 1)
-    set_render_layer('tshirt', 2, ten_percent_gray, wrinkles=True)
-    set_render_layer('pants', 3, ten_percent_gray, wrinkles=True)
+    set_render_layer('tshirt', 2, ten_percent_gray, wrinkles=wrinkles)
+    set_render_layer('pants', 3, ten_percent_gray, wrinkles=wrinkles)
     set_render_layer('hair', 4)
     set_render_layer('MBlab_pupil', 6)
     set_render_layer('MBlab_human_teeth', 6)
@@ -514,13 +514,13 @@ def load_animation(animation_path):
 
 
 def set_mocap_camera():
-    bpy.data.objects['Camera'].location = (0, -5, 1.7)
+    bpy.data.objects['Camera'].location = (0, -5, 1.5)
     bpy.data.objects['Camera'].rotation_euler = (math.radians(90), 0, 0)
 
 
-def render_multi_pass(render_id, image_out, percent_size, tile_size, animation):
+def render_multi_pass(render_id, image_out, percent_size, tile_size, animation, wrinkles):
     # Set up material render layers for masks
-    set_render_layers()
+    set_render_layers(wrinkles=wrinkles)
 
     # UV layer render
     set_uv_passes(bpy.context)
@@ -535,7 +535,7 @@ def render_multi_pass(render_id, image_out, percent_size, tile_size, animation):
     bpy.ops.render.render(animation=animation)
 
 
-def render_character(blend_in, background, image_out, percent_size, render_id, blend_save, animation, steps):
+def render_character(blend_in, background, image_out, percent_size, render_id, blend_save, animation, steps, wrinkles):
     """Import character, set up rendering, and render layers"""
     import_character(blend_in)
 
@@ -544,12 +544,12 @@ def render_character(blend_in, background, image_out, percent_size, render_id, b
     if animation is '':
         rotate_camera()
         fit_camera()
-        render_multi_pass(render_id, image_out, percent_size, 32, False)
+        render_multi_pass(render_id, image_out, percent_size, 32, False, wrinkles)
     else:
         set_mocap_camera()
         load_animation(animation)
         bpy.context.scene.frame_step = steps
-        render_multi_pass(render_id, image_out, percent_size, 32, True)
+        render_multi_pass(render_id, image_out, percent_size, 32, True, wrinkles)
 
     if blend_save is not '':
         bpy.ops.file.pack_all()
@@ -577,6 +577,7 @@ if __name__ == '__main__':
     parser.add_argument('--blend_save', '-b', type=str, help='if set, directory to save blend files', default='')
     parser.add_argument('--animation', '-a', type=str, help='if set, directory to mocap animation file', default='')
     parser.add_argument('--stride', '-s', type=int, help='frame steps; 1 is all frames', default=5)
+    parser.add_argument('--wrinkles', '-w', type=bool, help='flag for useage of wrinkles', default=False)
     args, _ = parser.parse_known_args(argv)
 
     if args.render_id is 'time':
@@ -585,4 +586,4 @@ if __name__ == '__main__':
         file_id = args.render_id
 
     render_character(args.blend_in, args.background, args.img_out, args.percent_size, file_id, args.blend_save,
-                     args.animation, args.stride)
+                     args.animation, args.stride, args.wrinkles)
