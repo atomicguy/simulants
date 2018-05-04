@@ -26,7 +26,7 @@ if __name__ == '__main__':
     args, _ = parser.parse_known_args()
 
     blend_list = list_files(args.input, 'blend')
-    hdri_list = list_files(args.hdri, 'jpg')
+    hdri_list = list_files(args.hdri, 'hdr')
 
     i = 1
     for _ in range(args.number):
@@ -47,5 +47,6 @@ if __name__ == '__main__':
                                '--img_out', args.output,
                                '--render_id', render_id,
                                '--percent_size', args.percent_size,
-                               '--blend_save', args.blend_save])
+                               '--blend_save', args.blend_save,
+                               '--wrinkles', 'True'])
         i += 1
