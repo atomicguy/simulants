@@ -268,52 +268,117 @@ def make_all_skin():
 
 
 def set_node_values(node, values):
-    """Set the default values of inputs from values dict"""
+    """Set input (defaults) to values from a dictionary
+
+    :param node: node to set input paramaters
+    :param values: dictionary of paramaters and values {'paramater': value}
+    """
     for input_port, value in values.items():
         node.inputs[input_port].default_value = value
 
 
 def link_nodes(node_group, from_node, out_port, to_node, in_port):
-    """link two nodes in a given node object"""
+    """Link two nodes together
+
+    :param node_group: group in which both nodes are found (i.e. materials)
+    :param from_node: source node
+    :param out_port: port on source node
+    :param to_node: target node
+    :param in_port: port on target node
+    """
     links = node_group.node_tree.links
     links.new(from_node.outputs[out_port], to_node.inputs[in_port])
 
 
-def add_wrinkles(material):
-
-    # { 'nodes' : [
-    #     {'type': 'ShaderNodeTexNoise',
-    #      'inputs': [
-    #          {'Scale' : 5.0}
-    #      ],
-    #      'id': 'noise_0'}
-    # ],
-    # 'links' : [
-    #     {'from': 'noise_0','output_port': 'Fac', 'to': '__output', 'input_port': 'Displacement'}]
-    # ]}
-
+def noise_wrinkle(material):
+    # Make noise wrinkles
     mat_nodes = material.node_tree.nodes
     output = mat_nodes.get('Material Output')
 
-    # # Make noise wrinkles
-    # noise_tex = mat_nodes.new(type='ShaderNodeTexNoise')
-    # noise_values = {'Scale': 5.0, 'Detail': 2, 'Distortion': 3.6}
-    # set_node_values(noise_tex, noise_values)
-    #
-    # # Link wrinkles to displacement
-    # link_nodes(material, noise_tex, 'Fac', output, 'Displacement')
+    noise_tex = mat_nodes.new(type='ShaderNodeTexNoise')
+    noise_values = {'Scale': 5.0, 'Detail': 2, 'Distortion': 3.6}
+    set_node_values(noise_tex, noise_values)
+
+    # Link wrinkles to displacement
+    link_nodes(material, noise_tex, 'Fac', output, 'Displacement')
+
+
+def wave_wrinkle(material):
+    # Wrinkles based on a wave pattern
+    mat_nodes = material.node_tree.nodes
+    output = mat_nodes.get('Material Output')
+
+    # Enable control of wave rotation on surface
+    tex_coord = mat_nodes.new(type='ShaderNodeTexCoord')
+    mapping = mat_nodes.new(type='ShaderNodeMapping')
+    mapping.vector_type = 'TEXTURE'
+    link_nodes(material, tex_coord, 'UV', mapping, 'Vector')
+
+    # Randomize rotation
+    rotation = math.radians(random.uniform(0, 180))
+    mapping.rotation[1] = rotation
 
     wave_tex = mat_nodes.new(type='ShaderNodeTexWave')
     wave_vals = {'Scale': 30, 'Distortion': 1.1, 'Detail': 2, 'Detail Scale': 1}
     set_node_values(wave_tex, wave_vals)
+    link_nodes(material, mapping, 'Vector', wave_tex, 'Vector')
 
     noise_tex = mat_nodes.new(type='ShaderNodeTexNoise')
-    noise_vals = {'Scale': 15.2, 'Detail': 2, 'Distortion': 1.5}
+
+    # Randomize wave supression scale
+    scale = random.uniform(2.0, 10.0)
+
+    noise_vals = {'Scale': scale, 'Detail': 2, 'Distortion': 1.5}
     set_node_values(noise_tex, noise_vals)
     link_nodes(material, noise_tex, 'Fac', wave_tex, 'Scale')
 
     link_nodes(material, wave_tex, 'Fac', output, 'Displacement')
 
+
+def magic_wrinkle(material):
+    # Wrinkles based on Magic Texture
+    mat_nodes = material.node_tree.nodes
+    output = mat_nodes.get('Material Output')
+
+    noise_tex = mat_nodes.new(type='ShaderNodeTexNoise')
+    noise_vals = {'Scale': 5, 'Detail': 2, 'Distortion': 0}
+    set_node_values(noise_tex, noise_vals)
+
+    voronoi_tex = mat_nodes.new(type='ShaderNodeTexVoronoi')
+    link_nodes(material, noise_tex, 'Fac', voronoi_tex, 'Scale')
+
+    mult_node = mat_nodes.new(type='ShaderNodeMath')
+    mult_node.operation = 'MULTIPLY'
+    link_nodes(material, voronoi_tex, 'Fac', mult_node, 0)
+    link_nodes(material, noise_tex, 'Fac', mult_node, 1)
+
+    magic_tex = mat_nodes.new(type='ShaderNodeTexMagic')
+    magic_tex.turbulence_depth = random.choice([1, 2, 3])
+    magic_vals = {'Distortion': 13}
+    set_node_values(magic_tex, magic_vals)
+    link_nodes(material, mult_node, 'Value', magic_tex, 'Scale')
+
+    musgrave_tex = mat_nodes.new(type='ShaderNodeTexMusgrave')
+    musgrave_vals = {'Scale': 10.9, 'Detail': 2, 'Dimension': 2, 'Lacunarity': 1, 'Offset': 0, 'Gain': 1}
+    set_node_values(musgrave_tex, musgrave_vals)
+
+    mult_2_node = mat_nodes.new(type='ShaderNodeMath')
+    mult_2_node.operation = 'MULTIPLY'
+    link_nodes(material, magic_tex, 'Fac', mult_2_node, 0)
+    link_nodes(material, musgrave_tex, 'Fac', mult_2_node, 1)
+
+    link_nodes(material, mult_2_node, 'Value', output, 'Displacement')
+
+
+def no_wrinkles(material):
+    "adds no wrinkles; placeholder"
+    return
+
+
+def add_wrinkles(material):
+    """Add random wrinkle displacement to a material"""
+    wrinkles = [noise_wrinkle, wave_wrinkle, magic_wrinkle, no_wrinkles]
+    random.choice(wrinkles)(material)
 
 
 def set_material_diffuse_color(material, color):
