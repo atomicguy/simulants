@@ -2,7 +2,7 @@ import os
 import re
 import sys
 import bpy
-import code
+import json
 import math
 import random
 import datetime
@@ -195,8 +195,8 @@ def make_file_out_node(context, layers, image_out):
         if output == 'IndexMA':
             make_mat_index_layers(tree, links, output, output_node, filename)
 
-        elif output == 'Image':
-            make_image_out_nodes(links, tree, output_node, output, filename)
+        # elif output == 'Image':
+        #     make_image_out_nodes(links, tree, output_node, output, filename)
 
         elif output == 'Depth':
             output_exr(tree, links, output_node, filename, 'Depth', 'depth')
@@ -447,7 +447,7 @@ def set_passes(context):
 
 def set_render_settings(percent_size, tile_size):
     """Set Cycles to known good render settings"""
-    bpy.data.scenes['Scene'].cycles.film_transparent = True
+    bpy.data.scenes['Scene'].cycles.film_transparent = False
     bpy.data.scenes['Scene'].render.resolution_percentage = percent_size
     bpy.context.scene.render.tile_x = tile_size
     bpy.context.scene.render.tile_y = tile_size
@@ -583,6 +583,68 @@ def set_mocap_camera():
     bpy.data.objects['Camera'].rotation_euler = (math.radians(90), 0, 0)
 
 
+def rotate_simulant(angle):
+    root = get_bone('root')
+    root.rotation_mode = 'XYZ'
+    root.rotation_euler.rotate_axis('Z', math.radians(angle))
+
+
+def set_head_camera():
+    camera = get_blend_obj('Camera')
+    # Position camera left/right [-2, 2], dolly [-8, -2], up/down (roughly human) [1.4, 1.7]
+    camera.location = (random.uniform(-2, 2), random.uniform(-8, -2), random.uniform(1.4, 1.7))
+    camera.rotation_euler = (random.uniform(math.radians(75), math.radians(105)), 0, 0)
+
+    simulant_rotation = random.uniform(-180, 180)
+    rotate_simulant(math.radians(simulant_rotation))
+
+
+def rotate_env_tex(angle):
+    world = [world for world in bpy.data.worlds][0]
+    node_tree = world.node_tree
+    tex_coord = node_tree.nodes.new(type='ShaderNodeTexCoord')
+    mapping = node_tree.nodes.new(type='ShaderNodeMapping')
+    mapping.vector_type = 'POINT'
+    link_nodes(world, tex_coord, 'Generated', mapping, 'Vector')
+    mapping.rotation[2] = math.radians(angle)
+    env_tex = node_tree.nodes.get('ENVIRONMENT')
+    print([node for node in node_tree.nodes])
+    link_nodes(world, mapping, 'Vector', env_tex, 'Vector')
+
+
+def get_bone(bone_name):
+    """Return bone of given name"""
+    skeleton = get_blend_obj('MBlab_sk')
+    bone = skeleton.pose.bones[bone_name]
+
+    return bone
+
+
+def get_head_properties():
+    head = get_bone('head')
+    center = head.center
+    length = head.length
+    # because head bone is skull but not jaw/chin need to adjust coordinates
+    radius = length * (2 / 3)
+    new_center = center
+    new_center[2] = new_center[2] - length / 6
+
+    camera = get_blend_obj('Camera')
+
+    distance = camera.location - new_center
+    distance = distance.length
+
+    return {'center': str(new_center), 'radius': radius, 'distance': distance}
+
+
+def make_info_json(render_id, background):
+    info = {'file_id': render_id, 'background': background}
+    head_info = get_head_properties()
+    info['head_info'] = head_info
+
+    return info
+
+
 def render_multi_pass(render_id, image_out, percent_size, tile_size, animation, wrinkles):
     # Set up material render layers for masks
     set_render_layers(wrinkles=wrinkles)
@@ -607,9 +669,14 @@ def render_character(blend_in, background, image_out, percent_size, render_id, b
     hdri_lighting(background, 1)
 
     if animation is '':
-        rotate_camera()
-        fit_camera()
+        set_head_camera()
+        background_rotation = random.uniform(0, 360)
+        rotate_env_tex(background_rotation)
         render_multi_pass(render_id, image_out, percent_size, 32, False, wrinkles)
+        info = make_info_json(render_id, background)
+        info_path = os.path.join(image_out, 'metadata', render_id + '.json')
+        with open(info_path, 'w') as outfile:
+            json.dump(info, outfile, indent=2)
     else:
         set_mocap_camera()
         load_animation(animation)
@@ -637,18 +704,14 @@ if __name__ == '__main__':
                         required=True)
     parser.add_argument('--img_out', '-o', type=str, help='render image output', required=True)
     parser.add_argument('--percent_size', '-p', type=int, help='image size percent of 2048', required=True)
-    parser.add_argument('--render_id', '-r', type=str, help='unique id for render generated if set to time',
-                        required=True)
+    parser.add_argument('--render_id', '-r', type=str, help='unique id for render', required=True)
     parser.add_argument('--blend_save', '-b', type=str, help='if set, directory to save blend files', default='')
     parser.add_argument('--animation', '-a', type=str, help='if set, directory to mocap animation file', default='')
     parser.add_argument('--stride', '-s', type=int, help='frame steps; 1 is all frames', default=5)
     parser.add_argument('--wrinkles', '-w', type=bool, help='flag for useage of wrinkles', default=False)
     args, _ = parser.parse_known_args(argv)
 
-    if args.render_id is 'time':
-        file_id = datetime.datetime.now().strftime('%Y%m%d%H%M%S')
-    else:
-        file_id = args.render_id
+    file_id = args.render_id
 
     render_character(args.blend_in, args.background, args.img_out, args.percent_size, file_id, args.blend_save,
                      args.animation, args.stride, args.wrinkles)
