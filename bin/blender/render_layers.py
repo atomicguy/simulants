@@ -2,10 +2,10 @@ import os
 import re
 import sys
 import bpy
+import bpy_extras
 import json
 import math
 import random
-import datetime
 
 from argparse import ArgumentParser
 
@@ -152,11 +152,11 @@ def new_mat_index_nodes(index, name, tree, links, output, output_node, filename)
 
 def make_mat_index_layers(tree, links, output, output_node, filename):
     """Break material indices out into individual outputs"""
-    new_mat_index_nodes(1, 'head', tree, links, output, output_node, filename)
+    new_mat_index_nodes(1, 'body', tree, links, output, output_node, filename)
     new_mat_index_nodes(2, 'shirt', tree, links, output, output_node, filename)
     new_mat_index_nodes(3, 'pants', tree, links, output, output_node, filename)
     new_mat_index_nodes(4, 'hair', tree, links, output, output_node, filename)
-    new_mat_index_nodes(5, 'body', tree, links, output, output_node, filename)
+    # new_mat_index_nodes(5, 'body', tree, links, output, output_node, filename)
     new_mat_index_nodes(6, 'etc', tree, links, output, output_node, filename)
 
 
@@ -290,7 +290,24 @@ def link_nodes(node_group, from_node, out_port, to_node, in_port):
     links.new(from_node.outputs[out_port], to_node.inputs[in_port])
 
 
-def noise_wrinkle(material):
+def use_texture(material, texture):
+    mat_nodes = material.node_tree.nodes
+    output = mat_nodes.get('Material Output')
+    shader = mat_nodes.new(type='ShaderNodeBsdfDiffuse')
+
+    if texture is None:
+        ten_percent_gray = (0.9, 0.9, 0.9, 1)
+        shader.inputs['Color'].default_value = ten_percent_gray
+    else:
+        image = bpy.data.images.load(texture)
+        image_tex = mat_nodes.new(type='ShaderNodeTexImage')
+        image_tex.image = image
+        link_nodes(material, image_tex, 'Color', shader, 'Color')
+
+    link_nodes(material, shader, 'BSDF', output, 'Surface')
+
+
+def noise_wrinkle(material, texture):
     # Make noise wrinkles
     mat_nodes = material.node_tree.nodes
     output = mat_nodes.get('Material Output')
@@ -302,8 +319,11 @@ def noise_wrinkle(material):
     # Link wrinkles to displacement
     link_nodes(material, noise_tex, 'Fac', output, 'Displacement')
 
+    # Add texture
+    use_texture(material, texture)
 
-def wave_wrinkle(material):
+
+def wave_wrinkle(material, texture):
     # Wrinkles based on a wave pattern
     mat_nodes = material.node_tree.nodes
     output = mat_nodes.get('Material Output')
@@ -334,8 +354,11 @@ def wave_wrinkle(material):
 
     link_nodes(material, wave_tex, 'Fac', output, 'Displacement')
 
+    # Use texture
+    use_texture(material, texture)
 
-def magic_wrinkle(material):
+
+def magic_wrinkle(material, texture):
     # Wrinkles based on Magic Texture
     mat_nodes = material.node_tree.nodes
     output = mat_nodes.get('Material Output')
@@ -369,16 +392,20 @@ def magic_wrinkle(material):
 
     link_nodes(material, mult_2_node, 'Value', output, 'Displacement')
 
+    # Add texture
+    use_texture(material, texture)
 
-def no_wrinkles(material):
+
+def no_wrinkles(material, texture):
     "adds no wrinkles; placeholder"
-    return
+    use_texture(material, texture)
 
 
-def add_wrinkles(material):
+def add_wrinkles(material, texture):
     """Add random wrinkle displacement to a material"""
     wrinkles = [noise_wrinkle, wave_wrinkle, magic_wrinkle, no_wrinkles]
-    random.choice(wrinkles)(material)
+    random.choice(wrinkles)(material, texture)
+    # no_wrinkles(material, texture)
 
 
 def set_material_diffuse_color(material, color):
@@ -392,30 +419,6 @@ def set_material_diffuse_color(material, color):
     shirt_diffuse.inputs['Color'].default_value = color
 
 
-def set_render_layer(name, index, color=None, wrinkles=False):
-    """Set material of name to specified index"""
-    mat = get_blend_mat(name)
-    mat.pass_index = index
-    if color:
-        set_material_diffuse_color(mat, color)
-    if wrinkles:
-        add_wrinkles(mat)
-
-
-def set_render_layers(wrinkles=False):
-    """Set indices of render layers"""
-    set_render_layer('MBlab_human_skin', 1)
-    ten_percent_gray = (0.9, 0.9, 0.9, 1)
-    set_render_layer('tshirt', 2, ten_percent_gray, wrinkles=wrinkles)
-    set_render_layer('pants', 3, ten_percent_gray, wrinkles=wrinkles)
-    set_render_layer('hair', 4)
-    set_render_layer('MBlab_pupil', 6)
-    set_render_layer('MBlab_human_teeth', 6)
-    set_render_layer('MBlab_fur', 6)
-    set_render_layer('MBlab_human_eyes', 6)
-    set_render_layer('MBlab_cornea', 6)
-
-
 def set_output_nodes(context, render_id, image_name):
     """Generate output nodes as needed"""
     full_rgb_path = os.path.join(image_name, 'rgba_comp', render_id + '_')
@@ -423,90 +426,6 @@ def set_output_nodes(context, render_id, image_name):
     bpy.context.scene.render.filepath = full_rgb_path
     layers = get_layers_and_passes(context, render_id)
     make_file_out_node(context, layers, image_name)
-
-
-def set_passes(context):
-    """Enable/disable known render passes"""
-    nodes = context.scene.node_tree.nodes
-    for n in nodes:
-        nodes.remove(n)
-
-    rl = context.scene.render.layers['RenderLayer']
-
-    rl.use_pass_combined = True
-    rl.use_pass_z = True
-    rl.use_pass_mist = False
-    rl.use_pass_normal = True
-    rl.use_pass_vector = True
-    rl.use_pass_uv = False
-    rl.use_pass_object_index = False
-    rl.use_pass_material_index = True
-    rl.use_pass_shadow = False
-    rl.use_pass_ambient_occlusion = True
-
-
-def set_render_settings(percent_size, tile_size):
-    """Set Cycles to known good render settings"""
-    bpy.data.scenes['Scene'].cycles.film_transparent = False
-    bpy.data.scenes['Scene'].render.resolution_percentage = percent_size
-    bpy.context.scene.render.tile_x = tile_size
-    bpy.context.scene.render.tile_y = tile_size
-
-    bpy.context.scene.render.layers[0].cycles.use_denoising = False
-    bpy.context.scene.render.layers[0].cycles.denoising_radius = 4
-    bpy.context.scene.cycles.sampling_pattern = 'CORRELATED_MUTI_JITTER'
-
-    bpy.context.scene.cycles.max_bounces = 8
-    bpy.context.scene.cycles.min_bounces = 2
-
-    bpy.context.scene.cycles.aa_samples = 4
-    bpy.context.scene.cycles.diffuse_samples = 2
-    bpy.context.scene.cycles.glossy_samples = 1
-    bpy.context.scene.cycles.transmission_samples = 1
-    bpy.context.scene.cycles.ao_samples = 2
-    bpy.context.scene.cycles.mesh_light_samples = 1
-    bpy.context.scene.cycles.subsurface_samples = 1
-    bpy.context.scene.cycles.volume_samples = 1
-
-    bpy.context.scene.cycles.transparent_min_bounces = 2
-    bpy.context.scene.cycles.transparent_max_bounces = 4
-    bpy.context.scene.cycles.transmission_bounces = 2
-    bpy.context.scene.cycles.glossy_bounces = 2
-    bpy.context.scene.cycles.max_bounces = 8
-
-
-def set_uv_passes(context):
-    """Enable/disable known render passes"""
-    nodes = context.scene.node_tree.nodes
-    for n in nodes:
-        nodes.remove(n)
-
-    rl = context.scene.render.layers['RenderLayer']
-
-    rl.use_pass_combined = False
-    rl.use_pass_z = False
-    rl.use_pass_mist = False
-    rl.use_pass_normal = False
-    rl.use_pass_vector = False
-    rl.use_pass_uv = True
-    rl.use_pass_object_index = False
-    rl.use_pass_material_index = False
-    rl.use_pass_shadow = False
-    rl.use_pass_ambient_occlusion = False
-
-
-def set_uv_render_settings(percent_size, tile_size):
-    """Set Cycles to known good render settings"""
-    bpy.data.scenes['Scene'].cycles.film_transparent = True
-    bpy.data.scenes['Scene'].render.resolution_percentage = percent_size
-    bpy.context.scene.render.tile_x = tile_size
-    bpy.context.scene.render.tile_y = tile_size
-
-    bpy.context.scene.render.layers[0].cycles.use_denoising = False
-    bpy.context.scene.render.layers[0].cycles.denoising_radius = 4
-    bpy.context.scene.cycles.sampling_pattern = 'CORRELATED_MUTI_JITTER'
-
-    bpy.context.scene.cycles.aa_samples = 1
 
 
 def randomize_shirt():
@@ -531,42 +450,11 @@ def randomize_clothing():
     randomize_pants()
 
 
-def setup_head_mask():
-    # Deselect all objects
-    for obj in bpy.data.objects:
-        obj.select = False
-
-    # Select just the human
-    human_mesh = get_human_mesh()
-    bpy.context.scene.objects.active = human_mesh
-
-    # Copy skin material into new material slot on body mesh
-    skin_mat = get_blend_mat('MBlab_human_skin')
-    body_mat = skin_mat.copy()
-    body_mat.name = 'body'
-    human_mesh.data.materials.append(body_mat)
-    body_mat.pass_index = 5
-
-    # Select the vertecies in the body only
-    bpy.ops.object.mode_set(mode='EDIT')
-    bpy.ops.mesh.select_all(action='DESELECT')
-    bpy.ops.object.vertex_group_set_active(group='head')
-    bpy.ops.object.vertex_group_select()
-    bpy.ops.mesh.select_all(action='INVERT')
-
-    # Assign body material to body vertices
-    human_mesh.active_material_index = human_mesh.material_slots.find('body')
-    bpy.ops.object.material_slot_assign()
-
-    bpy.ops.object.mode_set(mode='OBJECT')
-
-
 def import_character(blend_file):
     """Open character file and standardize skin, clothes, and head"""
     bpy.ops.wm.open_mainfile(filepath=blend_file)
     make_all_skin()
     randomize_clothing()
-    setup_head_mask()
 
 
 def load_animation(animation_path):
@@ -590,26 +478,37 @@ def rotate_simulant(angle):
 
 
 def set_head_camera():
-    camera = get_blend_obj('Camera')
+    camera_object = get_blend_obj('Camera')
     # Position camera left/right [-2, 2], dolly [-8, -2], up/down (roughly human) [1.4, 1.7]
-    camera.location = (random.uniform(-2, 2), random.uniform(-8, -2), random.uniform(1.4, 1.7))
-    camera.rotation_euler = (random.uniform(math.radians(75), math.radians(105)), 0, 0)
+    camera_object.location = (random.uniform(-2, 2), random.uniform(-8, -2), random.uniform(1.4, 1.7))
+    camera_object.rotation_euler = (random.uniform(math.radians(75), math.radians(105)), 0, 0)
 
     simulant_rotation = random.uniform(-180, 180)
     rotate_simulant(math.radians(simulant_rotation))
 
 
-def rotate_env_tex(angle):
-    world = [world for world in bpy.data.worlds][0]
-    node_tree = world.node_tree
-    tex_coord = node_tree.nodes.new(type='ShaderNodeTexCoord')
-    mapping = node_tree.nodes.new(type='ShaderNodeMapping')
-    mapping.vector_type = 'POINT'
-    link_nodes(world, tex_coord, 'Generated', mapping, 'Vector')
-    mapping.rotation[2] = math.radians(angle)
-    env_tex = node_tree.nodes.get('ENVIRONMENT')
-    print([node for node in node_tree.nodes])
-    link_nodes(world, mapping, 'Vector', env_tex, 'Vector')
+def recolor_simulant(hue, saturation, value):
+    skin = get_blend_mat('MBlab_human_skin')
+    skin_sat = skin.node_tree.nodes.get('skin_saturation')
+    skin_hue = skin.node_tree.nodes.get('skin_hue')
+    skin_val = skin.node_tree.nodes.get('skin_value')
+
+    skin_sat.outputs[0].default_value = saturation
+    skin_hue.outputs[0].default_value = hue
+    skin_val.outputs[0].default_value = value
+
+
+def recolor_hair(new_color):
+    hair = get_blend_mat('hair')
+    image_tex = hair.node_tree.nodes.get('Image Texture')
+    shader = hair.node_tree.nodes.get('Diffuse BSDF')
+
+    mix = hair.node_tree.nodes.new(type='ShaderNodeMixRGB')
+    mix.blend_type = 'SCREEN'
+    mix.inputs['Color2'].default_value = new_color
+
+    link_nodes(hair, image_tex, 'Color', mix, 'Color1')
+    link_nodes(hair, mix, 'Color', shader, 'Color')
 
 
 def get_bone(bone_name):
@@ -629,40 +528,99 @@ def get_head_properties():
     new_center = center
     new_center[2] = new_center[2] - length / 6
 
-    camera = get_blend_obj('Camera')
+    bpy.ops.mesh.primitive_uv_sphere_add(size=radius, location=new_center)
+    bpy.context.active_object.name = 'head_proxy'
+    bpy.data.objects['head_proxy'].layers[1] = True
+    bpy.data.objects['head_proxy'].layers[0] = False
 
-    distance = camera.location - new_center
+    camera_object = get_blend_obj('Camera')
+
+    distance = camera_object.location - new_center
     distance = distance.length
 
-    return {'center': str(new_center), 'radius': radius, 'distance': distance}
+    bpy.context.scene.cursor_location = center
+
+    center_2d = bpy_extras.object_utils.world_to_camera_view(bpy.context.scene, camera_object, new_center)
+    
+    head_top = head.tail
+    head_top_2d = bpy_extras.object_utils.world_to_camera_view(bpy.context.scene, camera_object, head_top)
+    radius_2d = (head_top_2d - center_2d).length
+
+    render_scale = bpy.context.scene.render.resolution_percentage / 100
+    render_size = (
+        int(bpy.context.scene.render.resolution_x * render_scale),
+        int(bpy.context.scene.render.resolution_y * render_scale),
+    )
+
+    x = center_2d.x * render_size[0]
+    y = render_size[1] - center_2d.y * render_size[1]
+
+    radius_px = radius_2d * render_size[0]
+
+    return {'center_x': x, 'center_y': y, 'radius_px': radius_px, 'distance': distance, 'vector': [x for x in head.vector]}
 
 
-def make_info_json(render_id, background):
-    info = {'file_id': render_id, 'background': background}
-    head_info = get_head_properties()
-    info['head_info'] = head_info
+def simulant_info(shirt, pants, skin_hsv, hair_color):
+    info = {}
+    simulant_info = get_head_properties()
+    info['simulant_info'] = simulant_info
+    info['shirt_texture'] = os.path.basename(shirt)
+    info['pants_texture'] = os.path.basename(pants)
+    info['skin_hsv'] = skin_hsv
+    info['hair_rgba'] = hair_color
 
     return info
 
 
-def render_multi_pass(render_id, image_out, percent_size, tile_size, animation, wrinkles):
+def make_info_json(info, render_id, background):
+    info['render_id'] = render_id
+    info['background'] = os.path.basename(background)
+
+    render_scale = bpy.context.scene.render.resolution_percentage / 100
+    render_size = (
+        int(bpy.context.scene.render.resolution_x * render_scale),
+        int(bpy.context.scene.render.resolution_y * render_scale),
+    )
+    info['render_scale'] = render_scale
+    info['render_size'] = render_size
+
+    return info
+
+
+def set_texture(material, texture):
+    mat = get_blend_mat(material)
+    add_wrinkles(mat, texture)
+
+
+def render_multi_pass(render_id, image_out, percent_size, tile_size, animation):
     # Set up material render layers for masks
-    set_render_layers(wrinkles=wrinkles)
+    render.set_render_layers()
 
     # UV layer render
-    set_uv_passes(bpy.context)
+    render.set_uv_passes(bpy.context)
     set_output_nodes(bpy.context, render_id, image_out)
-    set_uv_render_settings(percent_size, tile_size)
+    render.set_uv_render_settings(percent_size, tile_size)
     bpy.ops.render.render(animation=animation)
+
+    # Head Proxy Render
+    render.set_head_passes(bpy.context)
+    set_output_nodes(bpy.context, render_id, image_out)
+    render.set_head_render_settings(percent_size, tile_size)
+    head_mask_path = os.path.join(image_out, 'head_masks', render_id + '.png')
+    bpy.context.scene.render.filepath = head_mask_path
+    bpy.ops.render.render(animation=animation, write_still=True)
 
     # Anti-Aliased Normal Render
-    set_passes(bpy.context)
+    head_proxy = get_blend_obj('head_proxy')
+    bpy.data.objects.remove(head_proxy, True)
+    render.set_passes(bpy.context)
     set_output_nodes(bpy.context, render_id, image_out)
-    set_render_settings(percent_size, tile_size)
+    render.set_render_settings(percent_size, tile_size)
     bpy.ops.render.render(animation=animation)
 
 
-def render_character(blend_in, background, image_out, percent_size, render_id, blend_save, animation, steps, wrinkles):
+def render_character(blend_in, background, image_out, percent_size, render_id, blend_save, animation, steps,
+                     wrinkles, shirt, pants):
     """Import character, set up rendering, and render layers"""
     import_character(blend_in)
 
@@ -671,17 +629,30 @@ def render_character(blend_in, background, image_out, percent_size, render_id, b
     if animation is '':
         set_head_camera()
         background_rotation = random.uniform(0, 360)
-        rotate_env_tex(background_rotation)
-        render_multi_pass(render_id, image_out, percent_size, 32, False, wrinkles)
-        info = make_info_json(render_id, background)
+        camera.rotate_env_tex(background_rotation)
+        skin_hue = random.gauss(0.5, 0.2)
+        skin_sat = random.uniform(0.6, 1)
+        skin_val = random.uniform(0.1, 1)
+        skin_hsv = (skin_hue, skin_sat, skin_val)
+        recolor_simulant(skin_hue, skin_sat, skin_val)
+        hair_color = (random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1), 1)
+        recolor_hair(hair_color)
+        set_texture('tshirt', shirt)
+        set_texture('pants', pants)
+
+        info = simulant_info(shirt, pants, skin_hsv, hair_color)
+        info = make_info_json(info, render_id, background)
         info_path = os.path.join(image_out, 'metadata', render_id + '.json')
         with open(info_path, 'w') as outfile:
             json.dump(info, outfile, indent=2)
+
+        render_multi_pass(render_id, image_out, percent_size, 32, False)
+
     else:
         set_mocap_camera()
         load_animation(animation)
         bpy.context.scene.frame_step = steps
-        render_multi_pass(render_id, image_out, percent_size, 32, True, wrinkles)
+        render_multi_pass(render_id, image_out, percent_size, 32, True)
 
     if blend_save is not '':
         bpy.ops.file.pack_all()
@@ -708,10 +679,23 @@ if __name__ == '__main__':
     parser.add_argument('--blend_save', '-b', type=str, help='if set, directory to save blend files', default='')
     parser.add_argument('--animation', '-a', type=str, help='if set, directory to mocap animation file', default='')
     parser.add_argument('--stride', '-s', type=int, help='frame steps; 1 is all frames', default=5)
-    parser.add_argument('--wrinkles', '-w', type=bool, help='flag for useage of wrinkles', default=False)
+    parser.add_argument('--wrinkles', '-w', type=bool, help='flag for usage of wrinkles', default=False)
+    parser.add_argument('--shirt', '-t', type=str, help='path to shirt texture', required=True)
+    parser.add_argument('--pants', '-n', type=str, help='path to pants texture', required=True)
     args, _ = parser.parse_known_args(argv)
+
+    cwd = os.path.dirname(os.path.abspath(__file__))
+    import_dir = cwd.replace('/bin/blender', '', 1)
+    sys.path.append(import_dir)
+
+    from simulants import camera, render
+    from dataset_toolbox.src.tools import common
+
+    output = os.path.abspath(args.img_out)
+
+    common.mkdirp(os.path.join(output, 'metadata'))
 
     file_id = args.render_id
 
-    render_character(args.blend_in, args.background, args.img_out, args.percent_size, file_id, args.blend_save,
-                     args.animation, args.stride, args.wrinkles)
+    render_character(args.blend_in, args.background, output, args.percent_size, file_id, args.blend_save,
+                     args.animation, args.stride, args.wrinkles, args.shirt, args.pants)
