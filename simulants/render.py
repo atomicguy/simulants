@@ -33,6 +33,7 @@ def set_render_layers():
     set_render_layer('MBlab_human_eyes', 6)
     set_render_layer('MBlab_cornea', 6)
 
+
 def set_passes(context):
     """Enable/disable known render passes"""
     nodes = context.scene.node_tree.nodes

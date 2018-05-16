@@ -226,19 +226,6 @@ def get_blend_obj(object_name):
     return obj_list[0]
 
 
-def get_blend_mat(material_name):
-    """Return a specified material from a blender scene
-
-    :param material_name: (start of) name of material to return
-    :return: the specified material
-    """
-    materials = bpy.data.materials
-    mat_list = [mat for mat in materials if mat.name.startswith(material_name)]
-    assert len(mat_list) > 0, 'material {} not found'.format(material_name)
-
-    return mat_list[0]
-
-
 def get_mat_slot(blend_object, name):
     """Return a specified material slot for a given blender object
 
@@ -262,150 +249,16 @@ def make_all_skin():
     """set all skin geometry to skin texture (i.e. remove modesty material)"""
     human = get_human_mesh()
     generic_slot = get_mat_slot(human, 'MBlab_generic')
-    skin_material = get_blend_mat('MBlab_human_skin')
+    skin_material = node.material('MBlab_human_skin')
 
     generic_slot.material = skin_material
 
 
-def set_node_values(node, values):
-    """Set input (defaults) to values from a dictionary
-
-    :param node: node to set input paramaters
-    :param values: dictionary of paramaters and values {'paramater': value}
-    """
-    for input_port, value in values.items():
-        node.inputs[input_port].default_value = value
-
-
-def link_nodes(node_group, from_node, out_port, to_node, in_port):
-    """Link two nodes together
-
-    :param node_group: group in which both nodes are found (i.e. materials)
-    :param from_node: source node
-    :param out_port: port on source node
-    :param to_node: target node
-    :param in_port: port on target node
-    """
-    links = node_group.node_tree.links
-    links.new(from_node.outputs[out_port], to_node.inputs[in_port])
-
-
-def use_texture(material, texture):
-    mat_nodes = material.node_tree.nodes
-    output = mat_nodes.get('Material Output')
-    shader = mat_nodes.new(type='ShaderNodeBsdfDiffuse')
-
-    if texture is None:
-        ten_percent_gray = (0.9, 0.9, 0.9, 1)
-        shader.inputs['Color'].default_value = ten_percent_gray
-    else:
-        image = bpy.data.images.load(texture)
-        image_tex = mat_nodes.new(type='ShaderNodeTexImage')
-        image_tex.image = image
-        link_nodes(material, image_tex, 'Color', shader, 'Color')
-
-    link_nodes(material, shader, 'BSDF', output, 'Surface')
-
-
-def noise_wrinkle(material, texture):
-    # Make noise wrinkles
-    mat_nodes = material.node_tree.nodes
-    output = mat_nodes.get('Material Output')
-
-    noise_tex = mat_nodes.new(type='ShaderNodeTexNoise')
-    noise_values = {'Scale': 5.0, 'Detail': 2, 'Distortion': 3.6}
-    set_node_values(noise_tex, noise_values)
-
-    # Link wrinkles to displacement
-    link_nodes(material, noise_tex, 'Fac', output, 'Displacement')
-
-    # Add texture
-    use_texture(material, texture)
-
-
-def wave_wrinkle(material, texture):
-    # Wrinkles based on a wave pattern
-    mat_nodes = material.node_tree.nodes
-    output = mat_nodes.get('Material Output')
-
-    # Enable control of wave rotation on surface
-    tex_coord = mat_nodes.new(type='ShaderNodeTexCoord')
-    mapping = mat_nodes.new(type='ShaderNodeMapping')
-    mapping.vector_type = 'TEXTURE'
-    link_nodes(material, tex_coord, 'UV', mapping, 'Vector')
-
-    # Randomize rotation
-    rotation = math.radians(random.uniform(0, 180))
-    mapping.rotation[1] = rotation
-
-    wave_tex = mat_nodes.new(type='ShaderNodeTexWave')
-    wave_vals = {'Scale': 30, 'Distortion': 1.1, 'Detail': 2, 'Detail Scale': 1}
-    set_node_values(wave_tex, wave_vals)
-    link_nodes(material, mapping, 'Vector', wave_tex, 'Vector')
-
-    noise_tex = mat_nodes.new(type='ShaderNodeTexNoise')
-
-    # Randomize wave supression scale
-    scale = random.uniform(2.0, 10.0)
-
-    noise_vals = {'Scale': scale, 'Detail': 2, 'Distortion': 1.5}
-    set_node_values(noise_tex, noise_vals)
-    link_nodes(material, noise_tex, 'Fac', wave_tex, 'Scale')
-
-    link_nodes(material, wave_tex, 'Fac', output, 'Displacement')
-
-    # Use texture
-    use_texture(material, texture)
-
-
-def magic_wrinkle(material, texture):
-    # Wrinkles based on Magic Texture
-    mat_nodes = material.node_tree.nodes
-    output = mat_nodes.get('Material Output')
-
-    noise_tex = mat_nodes.new(type='ShaderNodeTexNoise')
-    noise_vals = {'Scale': 5, 'Detail': 2, 'Distortion': 0}
-    set_node_values(noise_tex, noise_vals)
-
-    voronoi_tex = mat_nodes.new(type='ShaderNodeTexVoronoi')
-    link_nodes(material, noise_tex, 'Fac', voronoi_tex, 'Scale')
-
-    mult_node = mat_nodes.new(type='ShaderNodeMath')
-    mult_node.operation = 'MULTIPLY'
-    link_nodes(material, voronoi_tex, 'Fac', mult_node, 0)
-    link_nodes(material, noise_tex, 'Fac', mult_node, 1)
-
-    magic_tex = mat_nodes.new(type='ShaderNodeTexMagic')
-    magic_tex.turbulence_depth = random.choice([1, 2, 3])
-    magic_vals = {'Distortion': 13}
-    set_node_values(magic_tex, magic_vals)
-    link_nodes(material, mult_node, 'Value', magic_tex, 'Scale')
-
-    musgrave_tex = mat_nodes.new(type='ShaderNodeTexMusgrave')
-    musgrave_vals = {'Scale': 10.9, 'Detail': 2, 'Dimension': 2, 'Lacunarity': 1, 'Offset': 0, 'Gain': 1}
-    set_node_values(musgrave_tex, musgrave_vals)
-
-    mult_2_node = mat_nodes.new(type='ShaderNodeMath')
-    mult_2_node.operation = 'MULTIPLY'
-    link_nodes(material, magic_tex, 'Fac', mult_2_node, 0)
-    link_nodes(material, musgrave_tex, 'Fac', mult_2_node, 1)
-
-    link_nodes(material, mult_2_node, 'Value', output, 'Displacement')
-
-    # Add texture
-    use_texture(material, texture)
-
-
-def no_wrinkles(material, texture):
-    "adds no wrinkles; placeholder"
-    use_texture(material, texture)
-
-
 def add_wrinkles(material, texture):
     """Add random wrinkle displacement to a material"""
-    wrinkles = [noise_wrinkle, wave_wrinkle, magic_wrinkle, no_wrinkles]
+    wrinkles = [retex.noise_wrinkle, retex.wave_wrinkle, retex.magic_wrinkle, retex.new_texture]
     random.choice(wrinkles)(material, texture)
-    # no_wrinkles(material, texture)
+    # retex.new_texture(material, texture)
 
 
 def set_material_diffuse_color(material, color):
@@ -487,28 +340,7 @@ def set_head_camera():
     rotate_simulant(math.radians(simulant_rotation))
 
 
-def recolor_simulant(hue, saturation, value):
-    skin = get_blend_mat('MBlab_human_skin')
-    skin_sat = skin.node_tree.nodes.get('skin_saturation')
-    skin_hue = skin.node_tree.nodes.get('skin_hue')
-    skin_val = skin.node_tree.nodes.get('skin_value')
 
-    skin_sat.outputs[0].default_value = saturation
-    skin_hue.outputs[0].default_value = hue
-    skin_val.outputs[0].default_value = value
-
-
-def recolor_hair(new_color):
-    hair = get_blend_mat('hair')
-    image_tex = hair.node_tree.nodes.get('Image Texture')
-    shader = hair.node_tree.nodes.get('Diffuse BSDF')
-
-    mix = hair.node_tree.nodes.new(type='ShaderNodeMixRGB')
-    mix.blend_type = 'SCREEN'
-    mix.inputs['Color2'].default_value = new_color
-
-    link_nodes(hair, image_tex, 'Color', mix, 'Color1')
-    link_nodes(hair, mix, 'Color', shader, 'Color')
 
 
 def get_bone(bone_name):
@@ -588,7 +420,7 @@ def make_info_json(info, render_id, background):
 
 
 def set_texture(material, texture):
-    mat = get_blend_mat(material)
+    mat = node.material(material)
     add_wrinkles(mat, texture)
 
 
@@ -634,9 +466,9 @@ def render_character(blend_in, background, image_out, percent_size, render_id, b
         skin_sat = random.uniform(0.6, 1)
         skin_val = random.uniform(0.1, 1)
         skin_hsv = (skin_hue, skin_sat, skin_val)
-        recolor_simulant(skin_hue, skin_sat, skin_val)
+        retex.recolor_simulant(skin_hue, skin_sat, skin_val)
         hair_color = (random.uniform(0, 1), random.uniform(0, 1), random.uniform(0, 1), 1)
-        recolor_hair(hair_color)
+        retex.recolor_hair(hair_color)
         set_texture('tshirt', shirt)
         set_texture('pants', pants)
 
@@ -688,14 +520,16 @@ if __name__ == '__main__':
     import_dir = cwd.replace('/bin/blender', '', 1)
     sys.path.append(import_dir)
 
-    from simulants import camera, render
+    from simulants import camera, node, render, retex
     from dataset_toolbox.src.tools import common
 
     output = os.path.abspath(args.img_out)
+    pants = os.path.abspath(args.pants)
+    shirt = os.path.abspath(args.shirt)
 
     common.mkdirp(os.path.join(output, 'metadata'))
 
     file_id = args.render_id
 
     render_character(args.blend_in, args.background, output, args.percent_size, file_id, args.blend_save,
-                     args.animation, args.stride, args.wrinkles, args.shirt, args.pants)
+                     args.animation, args.stride, args.wrinkles, shirt, pants)
