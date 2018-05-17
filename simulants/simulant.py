@@ -9,7 +9,95 @@ import sys
 cwd = os.path.dirname(os.path.abspath(__file__))
 sys.path.append(cwd)
 
-import node
+import node, render, retex
+
+
+class HairGenerator:
+    def __init__(self, config):
+        self.config = config
+
+    def attach_to(self, geo):
+        append_item(self.config['model'], 'hair', geo)
+        render.set_render_layer('hair', self.config['render_layer'])
+        hair_color = (
+            self.config['rgb']['r'], self.config['rgb']['g'], self.config['rgb']['b'], 1)
+        retex.recolor_hair(hair_color)
+        get_blend_obj('hair').name = self.config['id']
+
+
+class ShirtGenerator:
+    def __init__(self, config):
+        self.config = config
+
+    def attach_to(self, geo):
+        append_item(self.config['model'], 'tshirt', geo)
+        render.set_render_layer('tshirt', self.config['render_layer'])
+        shirt_mat = node.material('tshirt')
+        texture_file = self.config['texture']
+        retexture_shirt = getattr(retex, self.config['retexture_type'])
+        retexture_shirt(shirt_mat, texture_file)
+        get_blend_obj('tshirt').name = self.config['id']
+
+
+class PantsGenerator:
+    def __init__(self, config):
+        self.config = config
+
+    def attach_to(self, geo):
+        append_item(self.config['model'], 'pants', geo)
+        render.set_render_layer('pants', self.config['render_layer'])
+        pants_mat = node.material('pants')
+        texture_file = self.config['texture']
+        retexture_shirt = getattr(retex, self.config['retexture_type'])
+        retexture_shirt(pants_mat, texture_file)
+        get_blend_obj('pants').name = self.config['id']
+
+
+class SimulantGenerator:
+    def __init__(self, config):
+        self.config = config
+        initialize_base(self.config['base_mesh'])
+
+    def personalize(self):
+        set_skin(self.config['base_mesh'], self.config['skin']['hue'], self.config['skin']['saturation'],
+                          self.config['skin']['value'], self.config['skin']['age'], self.config['skin']['bump'])
+        set_eyes(self.config['base_mesh'], self.config['eye']['hue'], self.config['eye']['saturation'],
+                          self.config['eye']['value'])
+        set_traits(self.config['base_mesh'], self.config['traits']['age'], self.config['traits']['mass'],
+                            self.config['traits']['tone'])
+        make_unique(self.config['randomize'])
+        finalize()
+
+        # Rename
+        get_blend_obj('MBlab_sk').name = self.config['skeleton']
+        get_blend_obj('MBlab_bd').name = self.config['geometry']
+
+        # Uncensor
+        uncensor(self.config['geometry'])
+
+        # Set render layers
+        materials = [mat.name for mat in bpy.data.materials]
+        for mat in materials:
+            if mat.startswith('MBlab_human_skin'):
+                render.set_render_layer(mat, self.config['skin']['render_layer'])
+            else:
+                render.set_render_layer(mat, self.config['misc']['render_layer'])
+
+        # Generate head proxy and parent to head bone
+        head_info = head_properties(self.config['skeleton'])
+        head_proxy(self.config['skeleton'], head_info, self.config['head_proxy'])
+
+    def set_position(self):
+        rotate(self.config['skeleton'], self.config['rotation']['z'])
+        position(self.config['skeleton'], self.config['location'])
+
+    def set_pose(self):
+        pose(self.config['geometry'], self.config['pose'])
+
+    def clothe(self):
+        for x in ['hair', 'shirt', 'pants']:
+            cfg = build_generator(x, self.config)
+            cfg.attach_to(self.config['geometry'])
 
 
 class OutputRedirect:
@@ -28,6 +116,15 @@ class OutputRedirect:
         os.close(self.output.fileno())
         os.dup(self.output_fd_backup)
         os.close(self.output_fd_backup)
+
+
+def build_generator(x, sim_values):
+    if x == 'hair':
+        return HairGenerator(sim_values['hair'])
+    if x == 'shirt':
+        return ShirtGenerator(sim_values['shirt'])
+    if x == 'pants':
+        return PantsGenerator(sim_values['pants'])
 
 
 def deselect_all():

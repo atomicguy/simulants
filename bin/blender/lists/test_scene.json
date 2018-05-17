@@ -1,6 +1,7 @@
 {
   "scene_id": "00_test",
   "background": "/usr/local/share/datasets/hdris/dresden_moat_4k.hdr",
+  "hdri_intensity": 1,
   "objects":
           [
             {
@@ -69,13 +70,88 @@
               "pose": "/usr/local/share/datasets/simulants/mocap_poses/002_10/002_10_0152.json",
               "location": {
                 "x": 1.0,
-                "y": 0.0,
+                "y": 0.5,
                 "z": 0.0
               },
               "rotation": {
                 "x": 0.0,
                 "y": 0.0,
-                "z": -45.0
+                "z": -25.0
+              }
+            },
+            {
+              "id": "00_test_s02",
+              "head_proxy": "head_proxy_00_test_s02",
+              "skeleton": "skeleton_00_test_s02",
+              "geometry": "body_00_test_s02",
+              "path": "/usr/local/share/datasets/simulants/blends/00_test_s02.blend",
+              "class": "simulant",
+              "sex": "female",
+              "base_mesh": "f_ca01",
+              "skin": {
+                "hue": 0.5,
+                "saturation": 1.0,
+                "value": 1.0,
+                "age": 0.5,
+                "bump": 0.5,
+                "render_layer": 11
+              },
+              "misc": {"render_layer": 16},
+              "eye": {
+                "hue": 0.5,
+                "saturation": 0.5,
+                "value": 0.5,
+                "render_layer": 16
+              },
+              "traits": {
+                "age": 0.0,
+                "mass": 0.0,
+                "tone": 1.0
+              },
+              "randomize": {
+                "mblab_preserve_fantasy": "True",
+                "mblab_preserve_mass": "True",
+                "mblab_preserve_tone": "True",
+                "mblab_preserve_height": "False",
+                "mblab_preserve_body": "False",
+                "mblab_preserve_face": "False",
+                "mblab_preserve_phenotype": "False"
+              },
+              "hair": {
+                "model": "/usr/local/share/datasets/simulants/hairs/female_hair_07.blend",
+                "id": "hair_00_test_s02",
+                "rgb": {
+                  "r": 0.996,
+                  "g": 0.557,
+                  "b": 0.184
+                },
+                "render_layer": 14},
+              "shirt": {
+                "id": "tshirt_00_test_s02",
+                "model": "/usr/local/share/datasets/simulants/clothes/human_female_clothes.blend",
+                "retexture_type": "magic_wrinkle",
+                "texture": "/usr/local/share/datasets/simulants/textures/green.png",
+                "style": "shirt_sleeveless",
+                "render_layer": 12
+              },
+              "pants": {
+                "id": "pants_00_test_s02",
+                "model": "/usr/local/share/datasets/simulants/clothes/human_female_clothes.blend",
+                "retexture_type": "new_texture",
+                "texture": "/usr/local/share/datasets/simulants/textures/blue.png",
+                "style": "shorts_1",
+                "render_layer": 13
+              },
+              "pose": "/usr/local/share/datasets/simulants/mocap_poses/002_10/002_10_0152.json",
+              "location": {
+                "x": -1.0,
+                "y": -0.5,
+                "z": 0.0
+              },
+              "rotation": {
+                "x": 0.0,
+                "y": 0.0,
+                "z": -25.0
               }
             }
           ]

@@ -155,3 +155,19 @@ def set_head_render_settings(percent_size, tile_size):
     bpy.context.scene.cycles.sampling_pattern = 'CORRELATED_MUTI_JITTER'
 
     bpy.context.scene.cycles.aa_samples = 1
+
+
+def hdri_lighting(background, intensity):
+    """use background image as hdri environment lighting source"""
+    nw_world = bpy.data.worlds.new('hdri_tree')
+    bpy.context.scene.world = nw_world
+    bpy.context.scene.world.use_nodes = True
+    nodes = nw_world.node_tree.nodes
+    tree = nw_world.node_tree
+    img = bpy.data.images.load(background)
+    node_env = nodes.new('ShaderNodeTexEnvironment')
+    node_env.name = "ENVIRONMENT"
+    node_env.image = img
+    node_bkgd = tree.nodes['Background']
+    node_bkgd.inputs[1].default_value = intensity
+    tree.links.new(node_env.outputs['Color'], node_bkgd.inputs['Color'])
