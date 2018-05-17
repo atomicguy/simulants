@@ -126,10 +126,10 @@ if __name__ == '__main__':
     with open(args.info) as jd:
         info = json.load(jd)
 
-    # sim_values = info['objects'][0]
-
     for obj_properties in info['objects']:
         if obj_properties['class'] == 'simulant':
+            # ensure Blender is blank slate
+            bpy.ops.wm.read_homefile()
             this_simulant = SimulantGenerator(obj_properties)
             this_simulant.personalize()
             this_simulant.set_pose()
