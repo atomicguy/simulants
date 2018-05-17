@@ -101,7 +101,7 @@ class SimulantGenerator:
 
     def clothe(self):
         for x in ['hair', 'shirt', 'pants']:
-            cfg = build_generator(x, sim_values)
+            cfg = build_generator(x, self.config)
             cfg.attach_to(self.config['geometry'])
 
 
@@ -126,14 +126,15 @@ if __name__ == '__main__':
     with open(args.info) as jd:
         info = json.load(jd)
 
-    sim_values = info['objects'][0]
+    # sim_values = info['objects'][0]
 
-    # Add simulant to scene with specified properties
-    this_simulant = SimulantGenerator(sim_values)
-    this_simulant.personalize()
-    this_simulant.set_pose()
-    this_simulant.clothe()
-    this_simulant.set_position()
+    for obj_properties in info['objects']:
+        if obj_properties['class'] == 'simulant':
+            this_simulant = SimulantGenerator(obj_properties)
+            this_simulant.personalize()
+            this_simulant.set_pose()
+            this_simulant.clothe()
+            this_simulant.set_position()
 
-    bpy.ops.file.pack_all()
-    bpy.ops.wm.save_as_mainfile(filepath=sim_values['path'])
+            bpy.ops.file.pack_all()
+            bpy.ops.wm.save_as_mainfile(filepath=obj_properties['path'])
