@@ -2,6 +2,7 @@ import ast
 import bpy
 import bpy_extras
 import math
+import mathutils
 import os
 import sys
 
@@ -190,6 +191,7 @@ def position(location):
 
 
 def get_head_properties():
+    """Depricated in favor of seperated head_proxy and head_properties functions"""
     head = get_bone('head')
     center = head.center
     length = head.length
@@ -230,3 +232,38 @@ def get_head_properties():
     return {'center_x': x, 'center_y': y, 'radius_px': radius_px, 'distance': distance,
             'vector': [x for x in head.vector]}
 
+
+def head_properties():
+    """Return estimated head data calculated from simulant head bone"""
+    head = get_bone('head')
+    length = head.length
+
+    head_radius = length * (2 / 3)
+    head_center = head.head + (head.vector * (1 / 3)) # world-space
+
+    return {'radius': head_radius, 'center': head_center}
+
+
+def head_proxy(measurements, proxy_id):
+    """Create a head proxy sphere
+
+    :param measurements: radius and location information
+    :param proxy_id: unique id for this head proxy
+    """
+    bpy.ops.mesh.primitive_uv_sphere_add(size=measurements['radius'], location=measurements['center'])
+    bpy.context.active_object.name = proxy_id
+    head_proxy = bpy.data.objects[proxy_id]
+
+    # Parent to Head Bone
+    skeleton = get_blend_obj('MBlab_sk')
+    head_proxy.parent = skeleton
+    head_proxy.parent_type = 'BONE'
+    head_proxy.parent_bone = 'head'
+
+    # Fix translation (move -Y two thirds as head bone's tail is now origin)
+    center_bone_relative = mathutils.Vector((0, -(2/3) * skeleton.pose.bones['head'].length, 0))
+    head_proxy.location = center_bone_relative
+
+    # Hide proxy on layer 1
+    head_proxy.layers[1] = True
+    head_proxy.layers[0] = False

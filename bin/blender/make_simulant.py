@@ -18,7 +18,7 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--info', '-i', type=str, help='info json describing character', required=True)
-    parser.add_argument('--out', '-o', type=str, help='path to save result', required=True)
+    parser.add_argument('--out', '-o', type=str, help='directory to save result', required=True)
     args, _ = parser.parse_known_args(argv)
 
     cwd = os.path.dirname(os.path.abspath(__file__))
@@ -70,7 +70,10 @@ if __name__ == '__main__':
     simulant.position(sim_values['location'])
 
     # TODO: get head proxy to rotate/translate with simulant
-    head_info = simulant.get_head_properties()
+    # head_info = simulant.get_head_properties()
+    head_info = simulant.head_properties()
+    simulant.head_proxy(head_info, sim_values['head_proxy'])
 
     bpy.ops.file.pack_all()
-    bpy.ops.wm.save_as_mainfile(filepath=args.out)
+    blend_result_path = os.path.join(args.out, info['scene_id'] + '.blend')
+    bpy.ops.wm.save_as_mainfile(filepath=blend_result_path)
