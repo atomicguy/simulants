@@ -118,7 +118,7 @@ def magic_wrinkle(material, texture):
 
 
 def new_texture(material, texture):
-    "adds no wrinkles; placeholder"
+    """apply new texture to material"""
     use_texture(material, texture)
 
 

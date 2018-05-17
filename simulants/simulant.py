@@ -126,23 +126,23 @@ def finalize():
     bpy.ops.mbast.finalize_character()
 
 
-def pose(pose_path):
+def pose(body, pose_path):
     deselect_all()
-    human = get_blend_obj('MBlab_bd')
+    human = get_blend_obj(body)
     human.select = True
     bpy.ops.mbast.pose_load(filepath=pose_path)
 
 
-def uncensor():
+def uncensor(body):
     """set all skin geometry to skin texture (i.e. remove modesty material)"""
-    human = get_blend_obj('MBlab_bd')
+    human = get_blend_obj(body)
     generic_slot = get_mat_slot(human, 'MBlab_generic')
     skin_material = node.material('MBlab_human_skin')
 
     generic_slot.material = skin_material
 
 
-def append_item(filepath, item_name):
+def append_item(filepath, item_name, body):
     """Append clothing item to current scene"""
     scn = bpy.context.scene
     item = item_name
@@ -159,7 +159,7 @@ def append_item(filepath, item_name):
 
     # Proxy fit
     deselect_all()
-    get_blend_obj('MBlab_bd').select = True
+    get_blend_obj(body).select = True
     item = get_blend_obj(item)
     item.select = True
     print('fitting item {}'.format(item))
@@ -170,22 +170,22 @@ def append_item(filepath, item_name):
         bpy.ops.mbast.proxy_fit()
 
 
-def get_bone(bone_name):
+def get_bone(skeleton, bone_name):
     """Return bone of given name"""
-    skeleton = get_blend_obj('MBlab_sk')
+    skeleton = get_blend_obj(skeleton)
     bone = skeleton.pose.bones[bone_name]
 
     return bone
 
 
-def rotate(angle):
-    root = get_bone('root')
+def rotate(skeleton, angle):
+    root = get_bone(skeleton, 'root')
     root.rotation_mode = 'XYZ'
     root.rotation_euler.rotate_axis('Z', math.radians(angle))
 
 
-def position(location):
-    root = get_bone('root')
+def position(skeleton, location):
+    root = get_bone(skeleton, 'root')
     loc = (location['x'], location['y'], location['z'])
     root.location = loc
 
@@ -233,18 +233,20 @@ def get_head_properties():
             'vector': [x for x in head.vector]}
 
 
-def head_properties():
+def head_properties(skeleton):
     """Return estimated head data calculated from simulant head bone"""
-    head = get_bone('head')
+    head = bpy.data.objects[skeleton].pose.bones['head']
     length = head.length
 
     head_radius = length * (2 / 3)
     head_center = head.head + (head.vector * (1 / 3)) # world-space
 
-    return {'radius': head_radius, 'center': head_center}
+    distance = get_blend_obj('Camera').location - head_center
+
+    return {'radius': head_radius, 'center': head_center, 'distance': distance}
 
 
-def head_proxy(measurements, proxy_id):
+def head_proxy(base_skeleton, measurements, proxy_id):
     """Create a head proxy sphere
 
     :param measurements: radius and location information
@@ -255,7 +257,7 @@ def head_proxy(measurements, proxy_id):
     head_proxy = bpy.data.objects[proxy_id]
 
     # Parent to Head Bone
-    skeleton = get_blend_obj('MBlab_sk')
+    skeleton = get_blend_obj(base_skeleton)
     head_proxy.parent = skeleton
     head_proxy.parent_type = 'BONE'
     head_proxy.parent_bone = 'head'
@@ -264,6 +266,3 @@ def head_proxy(measurements, proxy_id):
     center_bone_relative = mathutils.Vector((0, -(2/3) * skeleton.pose.bones['head'].length, 0))
     head_proxy.location = center_bone_relative
 
-    # Hide proxy on layer 1
-    head_proxy.layers[1] = True
-    head_proxy.layers[0] = False

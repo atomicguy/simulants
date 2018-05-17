@@ -6,11 +6,13 @@
             {
               "id": "00_test_s01",
               "head_proxy": "head_proxy_00_test_s01",
+              "skeleton": "skeleton_00_test_s01",
+              "geometry": "body_00_test_s01",
               "path": "/usr/local/share/datasets/simulants/blends/00_test_s01.blend",
               "class": "simulant",
               "sex": "male",
               "base_mesh": "m_ca01",
-              "skin_values": {
+              "skin": {
                 "hue": 0.5,
                 "saturation": 1.0,
                 "value": 1.0,
@@ -18,7 +20,8 @@
                 "bump": 0.5,
                 "render_layer": 1
               },
-              "eye_values": {
+              "misc": {"render_layer": 6},
+              "eye": {
                 "hue": 0.5,
                 "saturation": 0.5,
                 "value": 0.5,
@@ -40,8 +43,15 @@
               },
               "hair": {
                 "model": "/usr/local/share/datasets/simulants/hairs/male_hair_07.blend",
+                "id": "hair_00_test_s01",
+                "rgb": {
+                  "r": 0.996,
+                  "g": 0.557,
+                  "b": 0.184
+                },
                 "render_layer": 4},
               "shirt": {
+                "id": "tshirt_00_test_s01",
                 "model": "/usr/local/share/datasets/simulants/clothes/human_male_clothes.blend",
                 "retexture_type": "magic_wrinkle",
                 "texture": "/usr/local/share/datasets/simulants/textures/blue.png",
@@ -49,6 +59,7 @@
                 "render_layer": 2
               },
               "pants": {
+                "id": "pants_00_test_s01",
                 "model": "/usr/local/share/datasets/simulants/clothes/human_male_clothes.blend",
                 "retexture_type": "new_texture",
                 "texture": "/usr/local/share/datasets/simulants/textures/green.png",
@@ -57,14 +68,14 @@
               },
               "pose": "/usr/local/share/datasets/simulants/mocap_poses/002_10/002_10_0152.json",
               "location": {
-                "x": 0.0,
+                "x": 1.0,
                 "y": 0.0,
                 "z": 0.0
               },
               "rotation": {
                 "x": 0.0,
                 "y": 0.0,
-                "z": 45.0
+                "z": -45.0
               }
             }
           ]
