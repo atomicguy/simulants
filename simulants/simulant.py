@@ -37,6 +37,7 @@ class ShirtGenerator:
         retexture_shirt = getattr(retex, self.config['retexture_type'])
         retexture_shirt(shirt_mat, texture_file)
         get_blend_obj('tshirt').name = self.config['id']
+        customize_clothes(self.config['id'], self.config['style'])
 
 
 class PantsGenerator:
@@ -51,6 +52,7 @@ class PantsGenerator:
         retexture_shirt = getattr(retex, self.config['retexture_type'])
         retexture_shirt(pants_mat, texture_file)
         get_blend_obj('pants').name = self.config['id']
+        customize_clothes(self.config['id'], self.config['style'])
 
 
 class SimulantGenerator:
@@ -85,7 +87,7 @@ class SimulantGenerator:
 
         # Generate head proxy and parent to head bone
         head_info = head_properties(self.config['skeleton'])
-        head_proxy(self.config['skeleton'], head_info, self.config['head_proxy'])
+        head_proxy(self.config['skeleton'], head_info, self.config['head_proxy']['id'])
 
     def set_position(self):
         rotate(self.config['skeleton'], self.config['rotation']['z'])
@@ -265,6 +267,17 @@ def append_item(filepath, item_name, body):
     bpy.context.scene.mblab_proxy_offset = 5
     with OutputRedirect(sys.stdout, '/dev/null'):
         bpy.ops.mbast.proxy_fit()
+
+
+def customize_clothes(clothing_item, mask_name):
+    """Use specified mask to customize clothing item
+
+    :param clothing_item: clothing item to customize
+    :param mask_name: name of customization mask
+    """
+    obj = bpy.data.objects[clothing_item]
+    mask = obj.modifiers.new(name='pmask', type='MASK')
+    mask.vertex_group = mask_name
 
 
 def get_bone(skeleton, bone_name):

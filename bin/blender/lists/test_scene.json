@@ -1,17 +1,23 @@
 {
   "scene_id": "00_test",
+  "scene_path": "/Users/atom/github/chronos/x/simulants/tmp/00_test.blend",
   "background": "/usr/local/share/datasets/hdris/dresden_moat_4k.hdr",
   "hdri_intensity": 1,
+  "image_size": 1024,
+  "tile_size": 32,
   "objects":
           [
             {
               "id": "00_test_s01",
-              "head_proxy": "head_proxy_00_test_s01",
               "skeleton": "skeleton_00_test_s01",
               "geometry": "body_00_test_s01",
               "path": "/usr/local/share/datasets/simulants/blends/00_test_s01.blend",
               "class": "simulant",
               "sex": "male",
+              "head_proxy": {
+                "id": "head_proxy_00_test_s01",
+                "layer": 1
+              },
               "base_mesh": "m_ca01",
               "skin": {
                 "hue": 0.5,
@@ -25,8 +31,7 @@
               "eye": {
                 "hue": 0.5,
                 "saturation": 0.5,
-                "value": 0.5,
-                "render_layer": 6
+                "value": 0.5
               },
               "traits": {
                 "age": 0.0,
@@ -69,7 +74,7 @@
               },
               "pose": "/usr/local/share/datasets/simulants/mocap_poses/002_10/002_10_0152.json",
               "location": {
-                "x": 1.0,
+                "x": 0.65,
                 "y": 0.5,
                 "z": 0.0
               },
@@ -81,12 +86,15 @@
             },
             {
               "id": "00_test_s02",
-              "head_proxy": "head_proxy_00_test_s02",
               "skeleton": "skeleton_00_test_s02",
               "geometry": "body_00_test_s02",
               "path": "/usr/local/share/datasets/simulants/blends/00_test_s02.blend",
               "class": "simulant",
               "sex": "female",
+              "head_proxy": {
+                "id": "head_proxy_00_test_s02",
+                "layer": 2
+              },
               "base_mesh": "f_ca01",
               "skin": {
                 "hue": 0.5,
@@ -100,8 +108,7 @@
               "eye": {
                 "hue": 0.5,
                 "saturation": 0.5,
-                "value": 0.5,
-                "render_layer": 16
+                "value": 0.5
               },
               "traits": {
                 "age": 0.0,
@@ -142,7 +149,7 @@
                 "style": "shorts_1",
                 "render_layer": 13
               },
-              "pose": "/usr/local/share/datasets/simulants/mocap_poses/002_10/002_10_0152.json",
+              "pose": "/usr/local/share/datasets/simulants/mocap_poses/009_06/009_06_0026.json",
               "location": {
                 "x": -1.0,
                 "y": -0.5,
