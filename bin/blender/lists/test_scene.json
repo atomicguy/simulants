@@ -9,6 +9,7 @@
           [
             {
               "id": "00_test_s01",
+              "head_id": "00_test_h01",
               "skeleton": "skeleton_00_test_s01",
               "geometry": "body_00_test_s01",
               "path": "/usr/local/share/datasets/simulants/blends/00_test_s01.blend",
@@ -86,6 +87,7 @@
             },
             {
               "id": "00_test_s02",
+              "head_id": "00_test_h02",
               "skeleton": "skeleton_00_test_s02",
               "geometry": "body_00_test_s02",
               "path": "/usr/local/share/datasets/simulants/blends/00_test_s02.blend",

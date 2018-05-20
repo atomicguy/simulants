@@ -28,7 +28,7 @@ if __name__ == '__main__':
     from simulants import render, simulant
 
     with open(args.info) as jd:
-            info = json.load(jd)
+        info = json.load(jd)
 
     # Generate objects if needed
     for obj_properties in info['objects']:
@@ -61,5 +61,3 @@ if __name__ == '__main__':
 
     bpy.ops.file.pack_all()
     bpy.ops.wm.save_as_mainfile(filepath=os.path.join(args.out, info['scene_id'] + '.blend'))
-
-# TODO: Render scene, generate depth data json
