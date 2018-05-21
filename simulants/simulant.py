@@ -353,7 +353,7 @@ def head_properties(skeleton):
 
     distance = get_blend_obj('Camera').location - head_center
 
-    return {'radius': head_radius, 'center': head_center, 'distance': distance}
+    return {'radius': head_radius, 'center': head_center, 'distance': distance.length}
 
 
 def head_proxy(base_skeleton, measurements, proxy_id):
