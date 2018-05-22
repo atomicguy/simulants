@@ -16,8 +16,7 @@
               "class": "simulant",
               "sex": "male",
               "head_proxy": {
-                "id": "head_proxy_00_test_s01",
-                "layer": 1
+                "id": "head_proxy_00_test_s01"
               },
               "base_mesh": "m_ca01",
               "skin": {
@@ -94,9 +93,7 @@
               "class": "simulant",
               "sex": "female",
               "head_proxy": {
-                "id": "head_proxy_00_test_s02",
-                "layer": 2
-              },
+                "id": "head_proxy_00_test_s02"},
               "base_mesh": "f_ca01",
               "skin": {
                 "hue": 0.5,

@@ -8,7 +8,7 @@ import Imath
 import OpenEXR
 import numpy as np
 
-from PIL import Image, ImageChops
+from PIL import Image, ImageChops, ImageStat
 from argparse import ArgumentParser
 
 
@@ -45,7 +45,10 @@ if __name__ == '__main__':
 
     for obj in info['objects']:
         if obj['class'] == 'head':
-            pass
+            head_mask = Image.open(os.path.join(base_path, obj['id'], 'head_{}.png'.format(obj['id']))).convert('L')
+            head_mask.save(os.path.join(base_path, obj['id'], 'mask_{}.png'.format(obj['id'])))
+            if ImageStat.Stat(head_mask).extrema[0][0] == ImageStat.Stat(head_mask).extrema[0][1]:
+                obj['distance'] = float('nan')
         if obj['class'] == 'person':
             mask_parts = ['hair', 'misc', 'pants', 'shirt', 'skin']
             hair = Image.open(os.path.join(base_path, obj['id'],

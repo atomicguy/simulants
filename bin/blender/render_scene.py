@@ -47,6 +47,8 @@ if __name__ == '__main__':
     with open(args.info) as jd:
         info = json.load(jd)
 
+    out_path = os.path.join(args.out, info['scene_id'])
+
     metadata = create_metadata(info)
 
     # Load scene
@@ -69,9 +71,10 @@ if __name__ == '__main__':
     for character in simulants:
         layer_id = int(character['head_proxy']['layer'])
         render.set_head_passes(bpy.context)
-        render.set_output_nodes(bpy.context, info['scene_id'], os.path.abspath(args.out), info)
+        render.set_output_nodes(bpy.context, info['scene_id'], os.path.abspath(out_path), info)
         render.set_head_render_settings(image_percent, tile_size)
-        head_mask_path = os.path.join(os.path.abspath(args.out), character['head_id'], 'mask_{}.png'.format(character['id']))
+        head_mask_path = os.path.join(os.path.abspath(out_path), character['head_id'],
+                                      'head_{}.png'.format(character['head_id']))
         bpy.context.scene.render.filepath = head_mask_path
         bpy.context.scene.layers = [i == layer_id for i in range(len(bpy.context.scene.layers))]
         bpy.ops.render.render(animation=False, write_still=True)
@@ -86,7 +89,7 @@ if __name__ == '__main__':
     bpy.data.scenes['Scene'].use_nodes = True
     bpy.context.scene.layers = [i == 0 for i in range(len(bpy.context.scene.layers))]
     render.set_uv_passes(bpy.context)
-    render.set_output_nodes(bpy.context, info['scene_id'], os.path.abspath(args.out), info)
+    render.set_output_nodes(bpy.context, info['scene_id'], os.path.abspath(out_path), info)
     render.set_uv_render_settings(image_percent, tile_size)
     bpy.ops.render.render(animation=False)
 
@@ -94,10 +97,10 @@ if __name__ == '__main__':
     bpy.data.scenes['Scene'].use_nodes = True
     bpy.context.scene.layers = [i == 0 for i in range(len(bpy.context.scene.layers))]
     render.set_passes(bpy.context)
-    render.set_output_nodes(bpy.context, info['scene_id'], os.path.abspath(args.out), info)
+    render.set_output_nodes(bpy.context, info['scene_id'], os.path.abspath(out_path), info)
     render.set_render_settings(image_percent, tile_size)
     bpy.ops.render.render(animation=False)
 
-    # bpy.ops.wm.save_as_mainfile(filepath=os.path.join(args.out, info['scene_id'] + '.blend'))
-    with open(os.path.join(args.out, '{}.json'.format(info['scene_id'])), 'w') as outfile:
+    # bpy.ops.wm.save_as_mainfile(filepath=os.path.join(out_path, info['scene_id'] + '.blend'))
+    with open(os.path.join(out_path, '{}.json'.format(info['scene_id'])), 'w') as outfile:
         json.dump(metadata, outfile, indent=2)

@@ -18,14 +18,14 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--info', '-i', type=str, help='info json describing character', required=True)
-    parser.add_argument('--out', '-o', type=str, help='directory to store resultant scene', required=True)
     args, _ = parser.parse_known_args(argv)
 
     cwd = os.path.dirname(os.path.abspath(__file__))
     import_dir = cwd.replace('/bin/blender', '', 1)
     sys.path.append(import_dir)
 
-    from simulants import render, simulant
+    from simulants import camera, render, simulant
+    from dataset_toolbox.src.tools import common
 
     with open(args.info) as jd:
         info = json.load(jd)
@@ -43,11 +43,13 @@ if __name__ == '__main__':
                 this_simulant.set_position()
 
                 bpy.ops.file.pack_all()
+                common.mkdirp(os.path.split(obj_properties['path'])[0])
                 bpy.ops.wm.save_as_mainfile(filepath=obj_properties['path'])
 
     # Combine into scene
     bpy.ops.wm.read_homefile()
     render.hdri_lighting(info['background'], info['hdri_intensity'])
+    camera.rotate_env_tex(info['background_rotation'])
 
     # Import objects
     for obj in info['objects']:
@@ -60,4 +62,4 @@ if __name__ == '__main__':
                 bpy.context.scene.objects.link(obj)
 
     bpy.ops.file.pack_all()
-    bpy.ops.wm.save_as_mainfile(filepath=os.path.join(args.out, info['scene_id'] + '.blend'))
+    bpy.ops.wm.save_as_mainfile(filepath=info['scene_path'])

@@ -24,6 +24,7 @@ if __name__ == '__main__':
     sys.path.append(import_dir)
 
     from simulants import simulant
+    from dataset_toolbox.src.tools import common
 
     with open(args.info) as jd:
         info = json.load(jd)
@@ -39,4 +40,5 @@ if __name__ == '__main__':
             this_simulant.set_position()
 
             bpy.ops.file.pack_all()
+            common.mkdirp(os.path.split(obj_properties['path'])[0])
             bpy.ops.wm.save_as_mainfile(filepath=obj_properties['path'])
