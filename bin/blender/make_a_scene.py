@@ -27,6 +27,8 @@ if __name__ == '__main__':
     from simulants import camera, render, simulant
     from dataset_toolbox.src.tools import common
 
+    base_file = './data/base_scene.blend'
+
     with open(args.info) as jd:
         info = json.load(jd)
 
@@ -35,7 +37,7 @@ if __name__ == '__main__':
         if obj_properties['class'] == 'simulant':
             if not os.path.isfile(obj_properties['path']):
                 # reset Blender setup
-                bpy.ops.wm.read_homefile()
+                bpy.ops.wm.open_mainfile(filepath=base_file)
                 this_simulant = simulant.SimulantGenerator(obj_properties)
                 this_simulant.personalize()
                 this_simulant.set_pose()
@@ -47,7 +49,7 @@ if __name__ == '__main__':
                 bpy.ops.wm.save_as_mainfile(filepath=obj_properties['path'])
 
     # Combine into scene
-    bpy.ops.wm.read_homefile()
+    bpy.ops.wm.open_mainfile(filepath=base_file)
     render.hdri_lighting(info['background'], info['hdri_intensity'])
     camera.rotate_env_tex(info['background_rotation'])
 
