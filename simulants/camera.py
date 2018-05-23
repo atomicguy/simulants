@@ -15,6 +15,13 @@ def link_nodes(node_group, from_node, out_port, to_node, in_port):
     links.new(from_node.outputs[out_port], to_node.inputs[in_port])
 
 
+def position():
+    # position camera at roughly human position
+    camera_object = bpy.data.objects['Camera']
+    camera_object.location = (0, -2.5, 1.6)
+    camera_object.rotation_euler = (math.radians(80), 0, 0)
+
+
 def rotate_env_tex(angle):
     world = [world for world in bpy.data.worlds][0]
     node_tree = world.node_tree

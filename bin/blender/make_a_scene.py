@@ -51,6 +51,7 @@ if __name__ == '__main__':
     # Combine into scene
     bpy.ops.wm.open_mainfile(filepath=base_file)
     render.hdri_lighting(info['background'], info['hdri_intensity'])
+    camera.position()
     camera.rotate_env_tex(info['background_rotation'])
 
     # Import objects
