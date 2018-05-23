@@ -1,5 +1,6 @@
 from __future__ import absolute_import, division, print_function
 
+import math
 import os
 import json
 import random
@@ -28,6 +29,16 @@ def which_sex(base_mesh):
     return sex
 
 
+def random_position():
+    rho = random.uniform(1.5, 10)
+    phi = random.uniform(math.radians(-24.55), math.radians(24.55))
+    x = rho * math.sin(phi)
+    y = rho * math.cos(phi) - 2.5
+    z = 0
+
+    return (x, y, z)
+
+
 class Simulant:
     def __init__(self, instance_id, scene_id, sim_info):
         """Generate the characteristics of a simulant
@@ -43,6 +54,7 @@ class Simulant:
         pants_masks = ['', 'shorts_1', 'shorts_2', 'shorts_3']
         shirt_masks = ['shirt_neck', 'shirt_sleeveless', 'shirt_croptop', 'shirt_open_front',
                        'shirt_short_1', 'shirt_short_2']
+        location = random_position()
 
         self.instance_id = str(instance_id).zfill(2)
         self.cls = 'simulant'
@@ -93,9 +105,9 @@ class Simulant:
                       'style': random.choice(pants_masks),
                       'render_layer': layer_base + 3}
         self.pose = random.choice(sim_info['poses'])
-        self.location = {'x': random.uniform(-2, 2),
-                         'y': random.uniform(-8, 1.5),
-                         'z': 0.0}
+        self.location = {'x': location[0],
+                         'y': location[1],
+                         'z': location[2]}
         self.rotation = {'x': 0.0, 'y': 0.0, 'z': random.uniform(-180, 180)}
 
     def desriptor(self):
