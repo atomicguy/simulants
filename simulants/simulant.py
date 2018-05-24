@@ -17,12 +17,14 @@ class HairGenerator:
         self.config = config
 
     def attach_to(self, geo):
-        append_item(self.config['model'], 'hair', geo)
-        render.set_render_layer('hair', self.config['render_layer'])
+        hair = self.config['hair']
+        append_item(hair['model'], 'hair', geo)
+        render.set_render_layer('hair', hair['render_layer'])
         hair_color = (
-            self.config['rgb']['r'], self.config['rgb']['g'], self.config['rgb']['b'], 1)
+            hair['rgb']['r'], hair['rgb']['g'], hair['rgb']['b'], 1)
         retex.recolor_hair(hair_color)
-        get_blend_obj('hair').name = self.config['id']
+        get_blend_obj('hair').name = hair['id']
+        parent_to_skeleton(bpy.data.objects[hair['id']], bpy.data.objects[self.config['skeleton']])
 
 
 class ShirtGenerator:
@@ -30,14 +32,16 @@ class ShirtGenerator:
         self.config = config
 
     def attach_to(self, geo):
-        append_item(self.config['model'], 'tshirt', geo)
-        render.set_render_layer('tshirt', self.config['render_layer'])
+        shirt = self.config['shirt']
+        append_item(shirt['model'], 'tshirt', geo)
+        render.set_render_layer('tshirt', shirt['render_layer'])
         shirt_mat = node.material('tshirt')
-        texture_file = self.config['texture']
-        retexture_shirt = getattr(retex, self.config['retexture_type'])
+        texture_file = shirt['texture']
+        retexture_shirt = getattr(retex, shirt['retexture_type'])
         retexture_shirt(shirt_mat, texture_file)
-        get_blend_obj('tshirt').name = self.config['id']
-        customize_clothes(self.config['id'], self.config['style'])
+        get_blend_obj('tshirt').name = shirt['id']
+        customize_clothes(shirt['id'], shirt['style'])
+        parent_to_skeleton(bpy.data.objects[shirt['id']], bpy.data.objects[self.config['skeleton']])
 
 
 class PantsGenerator:
@@ -45,14 +49,16 @@ class PantsGenerator:
         self.config = config
 
     def attach_to(self, geo):
-        append_item(self.config['model'], 'pants', geo)
-        render.set_render_layer('pants', self.config['render_layer'])
+        pants = self.config['pants']
+        append_item(pants['model'], 'pants', geo)
+        render.set_render_layer('pants', pants['render_layer'])
         pants_mat = node.material('pants')
-        texture_file = self.config['texture']
-        retexture_shirt = getattr(retex, self.config['retexture_type'])
+        texture_file = pants['texture']
+        retexture_shirt = getattr(retex, pants['retexture_type'])
         retexture_shirt(pants_mat, texture_file)
-        get_blend_obj('pants').name = self.config['id']
-        customize_clothes(self.config['id'], self.config['style'])
+        get_blend_obj('pants').name = pants['id']
+        customize_clothes(pants['id'], pants['style'])
+        parent_to_skeleton(bpy.data.objects[pants['id']], bpy.data.objects[self.config['skeleton']])
 
 
 class SimulantGenerator:
@@ -93,13 +99,13 @@ class SimulantGenerator:
         rotate(self.config['skeleton'], self.config['rotation']['z'])
         position(self.config['skeleton'], self.config['location'])
 
-    def set_pose(self):
-        pose(self.config['geometry'], self.config['pose'])
-
     def clothe(self):
         for x in ['hair', 'shirt', 'pants']:
-            cfg = build_generator(x, self.config)
+            cfg = clothing_generator(x, self.config)
             cfg.attach_to(self.config['geometry'])
+
+    def set_pose(self):
+        pose(self.config['geometry'], self.config['pose'])
 
 
 class OutputRedirect:
@@ -120,13 +126,26 @@ class OutputRedirect:
         os.close(self.output_fd_backup)
 
 
-def build_generator(x, sim_values):
+def clothing_generator(x, sim_values):
     if x == 'hair':
-        return HairGenerator(sim_values['hair'])
+        return HairGenerator(sim_values)
     if x == 'shirt':
-        return ShirtGenerator(sim_values['shirt'])
+        return ShirtGenerator(sim_values)
     if x == 'pants':
-        return PantsGenerator(sim_values['pants'])
+        return PantsGenerator(sim_values)
+
+
+def parent_to_skeleton(obj, skeleton, bone=''):
+    """Parent specified object to specified skeleton
+
+    :param obj: mesh to parent to skeleton
+    :param skeleton: Simulant skeleton
+    :param bone: optional specific bone as target
+    """
+    obj.parent = skeleton
+    if not bone == '':
+        obj.parent_type = 'BONE'
+        obj.parent_bone = bone
 
 
 def deselect_all():
@@ -290,57 +309,16 @@ def get_bone(skeleton, bone_name):
 
 def rotate(skeleton, angle):
     root = get_bone(skeleton, 'root')
+    # obj = bpy.data.objects[skeleton]
     root.rotation_mode = 'XYZ'
     root.rotation_euler.rotate_axis('Z', math.radians(angle))
 
 
 def position(skeleton, location):
-    root = get_bone(skeleton, 'root')
+    # root = get_bone(skeleton, 'root')
+    obj = bpy.data.objects[skeleton]
     loc = (location['x'], location['y'], location['z'])
-    root.location = loc
-
-
-def get_head_properties():
-    """Depricated in favor of seperated head_proxy and head_properties functions"""
-    head = get_bone('head')
-    center = head.center
-    length = head.length
-    # because head bone is skull but not jaw/chin need to adjust coordinates
-    radius = length * (2 / 3)
-    new_center = center
-    new_center[2] = new_center[2] - length / 6
-
-    bpy.ops.mesh.primitive_uv_sphere_add(size=radius, location=new_center)
-    bpy.context.active_object.name = 'head_proxy'
-    bpy.data.objects['head_proxy'].layers[1] = True
-    bpy.data.objects['head_proxy'].layers[0] = False
-
-    camera_object = get_blend_obj('Camera')
-
-    distance = camera_object.location - new_center
-    distance = distance.length
-
-    bpy.context.scene.cursor_location = center
-
-    center_2d = bpy_extras.object_utils.world_to_camera_view(bpy.context.scene, camera_object, new_center)
-
-    head_top = head.tail
-    head_top_2d = bpy_extras.object_utils.world_to_camera_view(bpy.context.scene, camera_object, head_top)
-    radius_2d = (head_top_2d - center_2d).length
-
-    render_scale = bpy.context.scene.render.resolution_percentage / 100
-    render_size = (
-        int(bpy.context.scene.render.resolution_x * render_scale),
-        int(bpy.context.scene.render.resolution_y * render_scale),
-    )
-
-    x = center_2d.x * render_size[0]
-    y = render_size[1] - center_2d.y * render_size[1]
-
-    radius_px = radius_2d * render_size[0]
-
-    return {'center_x': x, 'center_y': y, 'radius_px': radius_px, 'distance': distance,
-            'vector': [x for x in head.vector]}
+    obj.location = loc
 
 
 def head_properties(skeleton):
@@ -349,7 +327,7 @@ def head_properties(skeleton):
     length = head.length
 
     head_radius = length * (2 / 3)
-    head_center = head.head + (head.vector * (1 / 3)) # world-space
+    head_center = head.head + (head.vector * (1 / 3))  # world-space
 
     distance = get_blend_obj('Camera').location - head_center
 
@@ -359,6 +337,7 @@ def head_properties(skeleton):
 def head_proxy(base_skeleton, measurements, proxy_id):
     """Create a head proxy sphere
 
+    :param base_skeleton: skeleton to which head is attached
     :param measurements: radius and location information
     :param proxy_id: unique id for this head proxy
     """
@@ -368,11 +347,8 @@ def head_proxy(base_skeleton, measurements, proxy_id):
 
     # Parent to Head Bone
     skeleton = get_blend_obj(base_skeleton)
-    head_proxy.parent = skeleton
-    head_proxy.parent_type = 'BONE'
-    head_proxy.parent_bone = 'head'
+    parent_to_skeleton(head_proxy, skeleton, bone='head')
 
     # Fix translation (move -Y two thirds as head bone's tail is now origin)
     center_bone_relative = mathutils.Vector((0, -(2/3) * skeleton.pose.bones['head'].length, 0))
     head_proxy.location = center_bone_relative
-
