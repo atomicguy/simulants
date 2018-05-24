@@ -36,7 +36,7 @@ if __name__ == '__main__':
     objects = []
     for i in range(args.number):
         sim_id = codenamize(str(uuid.uuid4()), 2, 0)
-        simulant = SimulantDescriptionGenerator(i, sim_id, sim_info)
+        simulant = SimulantDescriptionGenerator(0, sim_id, sim_info)
         info = simulant.desriptor()
         objects.append(info)
 
