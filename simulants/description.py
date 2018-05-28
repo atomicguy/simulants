@@ -21,7 +21,7 @@ class SimulantDescriptionGenerator:
         location = random_position()
 
         self.instance_id = str(instance_id).zfill(4)
-        self.cls = 'simulant'
+        self.class_name = 'simulant'
         self.id = '{}_01_{}'.format(scene_id, self.instance_id)
         self.head_id = '{}_91_{}'.format(scene_id, self.instance_id)
         self.skeleton = 'skeleton_{}'.format(self.id)
@@ -76,7 +76,7 @@ class SimulantDescriptionGenerator:
 
     def desriptor(self):
         return {'id': self.id,
-                'class': self.cls,
+                'class_name': self.class_name,
                 'head_id': self.head_id,
                 'skeleton': self.skeleton,
                 'geometry': self.geometry,

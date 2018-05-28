@@ -44,12 +44,12 @@ if __name__ == '__main__':
     base_path = os.path.split(args.info)[0]
 
     for obj in info['objects']:
-        if obj['class'] == 'head':
+        if obj['class_name'] == 'head':
             head_mask = Image.open(os.path.join(base_path, obj['id'], 'head_{}.png'.format(obj['id']))).convert('L')
             head_mask.save(os.path.join(base_path, obj['id'], 'mask_{}.png'.format(obj['id'])))
             if ImageStat.Stat(head_mask).extrema[0][0] == ImageStat.Stat(head_mask).extrema[0][1]:
                 obj['distance'] = float('nan')
-        if obj['class'] == 'person':
+        if obj['class_name'] == 'person':
             mask_parts = ['hair', 'misc', 'pants', 'shirt', 'skin']
             hair = Image.open(os.path.join(base_path, obj['id'],
                                            'hair_{}0001.png').format(obj['id'])).convert('L')

@@ -1,9 +1,18 @@
 import os
+import glob
 import json
 import subprocess
 import sys
 
 from joblib import Parallel, delayed
+
+
+def find_filepaths(path, extension):
+    return glob.glob('%s/*.%s' % (path, extension))
+
+
+def find_filenames(path, extension):
+    return [os.path.basename(path) for path in find_filepaths(path, extension)]
 
 
 def write_error(work_item, exception):
@@ -16,15 +25,16 @@ def write_error(work_item, exception):
 
 
 def work(work_item):
-    token_path = work_item['path']
+    sim_name = os.path.splitext(os.path.basename(work_item))[0]
+    token_path = os.path.join('/usr/local/share/datasets/simulants/depth/simulants', '{}.blend'.format(sim_name))
 
     if os.path.exists(token_path):
         print('skipping {}'.format(token_path))
         return
 
-    json_path = os.path.join('descriptors', '{}.json'.format(work_item['id']))
+    # json_path = os.path.join('descriptors', '{}.json'.format(work_item))
 
-    command = ['blender', '-b', '-P', 'make_a_simulant.py', '--', '--info', json_path]
+    command = ['blender', '-b', '-P', 'blender/make_a_simulant.py', '--', '--info', work_item]
 
     try:
         subprocess.check_call(command)
@@ -33,8 +43,7 @@ def work(work_item):
 
 
 if __name__ == '__main__':
-    with open('simulant_set.json', 'r') as f:
-        work_list = json.load(f)
+    work_list = find_filepaths('/usr/local/share/datasets/simulants/depth/descriptors/simulants', 'json')
 
     print('found {} items'.format(len(work_list)))
 
@@ -44,4 +53,4 @@ if __name__ == '__main__':
     except:
         pass
 
-    Parallel(n_jobs=5)(delayed(work)(i) for i in work_list)
+    Parallel(n_jobs=2)(delayed(work)(i) for i in work_list)

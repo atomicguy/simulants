@@ -19,10 +19,10 @@ def create_metadata(info):
     targets = []
 
     for obj in info['objects']:
-        cls = obj['class']
+        cls = obj['class_name']
         if cls == 'simulant':
             cls = 'person'
-        targets.append({'class': cls, 'id': obj['id']})
+        targets.append({'class_name': cls, 'id': obj['id']})
 
     metadata['objects'] = targets
 
@@ -110,7 +110,7 @@ if __name__ == '__main__':
     tile_size = int(info['tile_size'])
 
     objects = info['objects']
-    simulants = [obj for obj in objects if obj['class'] == 'simulant']
+    simulants = [obj for obj in objects if obj['class_name'] == 'simulant']
 
     # Move Head boxes to correct layers
     for character in simulants:
@@ -132,7 +132,7 @@ if __name__ == '__main__':
         bpy.ops.render.render(animation=False, write_still=True)
 
         head_info = simulant.head_properties('skeleton_{}'.format(character['id']))
-        head_info['class'] = 'head'
+        head_info['class_name'] = 'head'
         head_info['id'] = character['head_id']
         head_info['center'] = [x for x in head_info['center']]
         metadata['objects'].append(head_info)

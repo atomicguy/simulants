@@ -30,7 +30,7 @@ if __name__ == '__main__':
         info = json.load(jd)
 
     for obj_properties in info['objects']:
-        if obj_properties['class'] == 'simulant':
+        if obj_properties['class_name'] == 'simulant':
             # ensure Blender is blank slate
             bpy.ops.wm.read_homefile()
             this_simulant = simulant.SimulantGenerator(obj_properties)

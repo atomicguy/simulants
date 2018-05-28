@@ -34,7 +34,7 @@ if __name__ == '__main__':
 
     # Generate objects if needed
     for obj_properties in info['objects']:
-        if obj_properties['class'] == 'simulant':
+        if obj_properties['class_name'] == 'simulant':
             if not os.path.isfile(obj_properties['path']):
                 # reset Blender setup
                 bpy.ops.wm.open_mainfile(filepath=base_file)
