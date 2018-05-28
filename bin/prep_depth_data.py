@@ -62,8 +62,7 @@ if __name__ == '__main__':
             mask.save(os.path.join(base_path, obj['id'], 'mask_{}.png'.format(obj['id'])))
             depth = depth_array(os.path.join(base_path, 'z', '{}_0001.exr'.format(info['scene_id'])))
             mask_np = np.asarray(mask)
-            if np.max(mask_np) > 1:
-                mask_np = mask_np / 255.0
+            mask_np = mask_np / 255.0
 
             np.putmask(depth, mask_np < 1, 10000000001.0)
             distance = np.mean(depth_values(depth))

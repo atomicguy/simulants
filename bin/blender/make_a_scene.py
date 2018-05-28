@@ -18,6 +18,8 @@ if __name__ == '__main__':
 
     parser = ArgumentParser()
     parser.add_argument('--info', '-i', type=str, help='info json describing character', required=True)
+    parser.add_argument('--base_scene', type=str, help='blender base file',
+                        default='/usr/local/share/datasets/simulants/base_scene.blend')
     args, _ = parser.parse_known_args(argv)
 
     cwd = os.path.dirname(os.path.abspath(__file__))
@@ -26,8 +28,6 @@ if __name__ == '__main__':
 
     from simulants import camera, render, simulant
     from dataset_toolbox.src.tools import common
-
-    base_file = './data/base_scene.blend'
 
     with open(args.info) as jd:
         info = json.load(jd)
@@ -49,7 +49,7 @@ if __name__ == '__main__':
                 bpy.ops.wm.save_as_mainfile(filepath=obj_properties['path'])
 
     # Combine into scene
-    bpy.ops.wm.open_mainfile(filepath=base_file)
+    bpy.ops.wm.open_mainfile(filepath=args.base_file)
     render.hdri_lighting(info['background'], info['hdri_intensity'])
     camera.position()
     camera.rotate_env_tex(info['background_rotation'])

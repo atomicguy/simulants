@@ -16,7 +16,9 @@ if __name__ == '__main__':
         argv = argv[argv.index("--") + 1:]  # get all args after "--"
 
     parser = ArgumentParser()
-    parser.add_argument('--info', '-i', type=str, help='info json describing character', required=True)
+    parser.add_argument('--info', type=str, help='info json describing character', required=True)
+    parser.add_argument('--base_scene', type=str, help='blender base file',
+                        default='/usr/local/share/datasets/simulants/base_scene.blend')
     args, _ = parser.parse_known_args(argv)
 
     cwd = os.path.dirname(os.path.abspath(__file__))
@@ -30,7 +32,7 @@ if __name__ == '__main__':
         sim = json.load(jd)
 
     # ensure Blender is blank slate
-    bpy.ops.wm.open_mainfile(filepath='/tmp/blend_scripts/base_scene.blend')
+    bpy.ops.wm.open_mainfile(filepath=args.base_scene)
     this_simulant = simulant.SimulantGenerator(sim)
     this_simulant.personalize()
     this_simulant.set_pose()

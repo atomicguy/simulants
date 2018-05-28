@@ -46,6 +46,17 @@ def set_render_layers():
     set_render_layer('MBlab_cornea', 6)
 
 
+def set_image_size(image_size, percent_size):
+    """Set image properties
+
+    :param image_size: [w, h] in pixels
+    :param percent_size: percent size (usually 100)
+    """
+    bpy.data.scenes['Scene'].render.resolution_percentage = percent_size
+    bpy.data.scenes['Scene'].render.resolution_x = image_size[0]
+    bpy.data.scenes['Scene'].render.resolution_y = image_size[1]
+
+
 def set_passes(context):
     """Enable/disable known render passes"""
     nodes = context.scene.node_tree.nodes
@@ -66,13 +77,13 @@ def set_passes(context):
     rl.use_pass_ambient_occlusion = True
 
 
-def set_render_settings(percent_size, tile_size):
+def set_render_settings(image_size, percent_size, tile_size):
     """Set Cycles to known good render settings"""
     bpy.data.scenes['Scene'].layers[1] = False
     bpy.data.scenes['Scene'].layers[0] = True
 
+    set_image_size(image_size, percent_size)
     bpy.data.scenes['Scene'].cycles.film_transparent = False
-    bpy.data.scenes['Scene'].render.resolution_percentage = percent_size
     bpy.context.scene.render.tile_x = tile_size
     bpy.context.scene.render.tile_y = tile_size
 
@@ -119,10 +130,10 @@ def set_uv_passes(context):
     rl.use_pass_ambient_occlusion = False
 
 
-def set_uv_render_settings(percent_size, tile_size):
+def set_uv_render_settings(image_size, percent_size, tile_size):
     """Set Cycles to known good render settings"""
+    set_image_size(image_size, percent_size)
     bpy.data.scenes['Scene'].cycles.film_transparent = True
-    bpy.data.scenes['Scene'].render.resolution_percentage = percent_size
     bpy.context.scene.render.tile_x = tile_size
     bpy.context.scene.render.tile_y = tile_size
 
@@ -153,12 +164,13 @@ def set_head_passes(context):
     rl.use_pass_ambient_occlusion = False
 
 
-def set_head_render_settings(percent_size, tile_size):
+def set_head_render_settings(image_size, percent_size, tile_size):
     """Set Cycles to known good render settings"""
     bpy.data.scenes['Scene'].layers[1] = True
     bpy.data.scenes['Scene'].layers[0] = False
+
+    set_image_size(image_size, percent_size)
     bpy.data.scenes['Scene'].cycles.film_transparent = True
-    bpy.data.scenes['Scene'].render.resolution_percentage = percent_size
     bpy.context.scene.render.tile_x = tile_size
     bpy.context.scene.render.tile_y = tile_size
 
@@ -166,7 +178,23 @@ def set_head_render_settings(percent_size, tile_size):
     bpy.context.scene.render.layers[0].cycles.denoising_radius = 4
     bpy.context.scene.cycles.sampling_pattern = 'CORRELATED_MUTI_JITTER'
 
+    bpy.context.scene.cycles.max_bounces = 2
+    bpy.context.scene.cycles.min_bounces = 1
+
     bpy.context.scene.cycles.aa_samples = 1
+    bpy.context.scene.cycles.diffuse_samples = 1
+    bpy.context.scene.cycles.glossy_samples = 1
+    bpy.context.scene.cycles.transmission_samples = 1
+    bpy.context.scene.cycles.ao_samples = 1
+    bpy.context.scene.cycles.mesh_light_samples = 1
+    bpy.context.scene.cycles.subsurface_samples = 1
+    bpy.context.scene.cycles.volume_samples = 1
+
+    bpy.context.scene.cycles.transparent_min_bounces = 1
+    bpy.context.scene.cycles.transparent_max_bounces = 1
+    bpy.context.scene.cycles.transmission_bounces = 1
+    bpy.context.scene.cycles.glossy_bounces = 1
+    bpy.context.scene.cycles.max_bounces = 2
 
 
 def hdri_lighting(background, intensity):

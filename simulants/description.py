@@ -20,15 +20,15 @@ class SimulantDescriptionGenerator:
                        'shirt_short_1', 'shirt_short_2']
         location = random_position()
 
-        self.instance_id = str(instance_id).zfill(2)
+        self.instance_id = str(instance_id).zfill(4)
         self.cls = 'simulant'
         self.id = '{}_01_{}'.format(scene_id, self.instance_id)
         self.head_id = '{}_91_{}'.format(scene_id, self.instance_id)
         self.skeleton = 'skeleton_{}'.format(self.id)
         self.geometry = 'body_{}'.format(self.id)
         self.path = os.path.join(sim_info['out_path'], '{}.blend'.format(self.id))
-        self.base = random.choice(base_meshes)
-        self.sex = which_sex(self.base)
+        self.base_mesh = random.choice(base_meshes)
+        self.sex = which_sex(self.base_mesh)
         self.head_proxy = {'id': 'head_proxy_{}'.format(self.id),
                            'layer': instance_id + 1}
         self.randomize = {'mblab_preserve_fantasy': 'True',
@@ -83,7 +83,7 @@ class SimulantDescriptionGenerator:
                 'path': self.path,
                 'sex': self.sex,
                 'head_proxy': self.head_proxy,
-                'base_mesh': self.base,
+                'base_mesh': self.base_mesh,
                 'skin': self.skin,
                 'misc': self.misc,
                 'eye': self.eye,
@@ -98,6 +98,7 @@ class SimulantDescriptionGenerator:
 
 
 def which_sex(base_mesh):
+    """From base mesh name, return simulant's sex"""
     sex = ''
     if base_mesh[0] == 'f':
         sex = 'female'
@@ -108,11 +109,36 @@ def which_sex(base_mesh):
     return sex
 
 
-def random_position():
-    rho = random.uniform(1.5, 10)
-    phi = random.uniform(math.radians(-24.55), math.radians(24.55))
+def random_position(fov=30, min=1.5, max=10, camera=-2.5):
+    """Generate an x,y,z position within a given frustum
+
+    :param fov: camera field of view
+    :param min: min distance from camera
+    :param max: max distance from camera
+    :param camera: camera position on y axis
+    :return: (x, y, z) coordinates
+    """
+    rho = random.uniform(min, max)
+    phi = random.uniform(math.radians(-1*fov/2), math.radians(fov/2))
     x = rho * math.sin(phi)
-    y = rho * math.cos(phi) - 2.5
+    y = rho * math.cos(phi) + camera
     z = 0
 
     return (x, y, z)
+
+
+def update_layers(simulant, instance_id):
+    """Update the layers & render layers of a simulant
+
+    :param simulant: the dictionary for a simulant
+    :return: updated object dictionary
+    """
+    layer_base = instance_id * 10
+    simulant['head_proxy']['layer'] = instance_id + 1
+    simulant['skin']['render_layer'] = layer_base + 1
+    simulant['misc']['render_layer'] = layer_base + 6
+    simulant['hair']['render_layer'] = layer_base + 4
+    simulant['shirt']['render_layer'] = layer_base + 2
+    simulant['pants']['render_layer'] = layer_base + 3
+
+    return simulant

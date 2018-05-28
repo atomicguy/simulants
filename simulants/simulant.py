@@ -6,10 +6,7 @@ import mathutils
 import os
 import sys
 
-cwd = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(cwd)
-
-import node, render, retex
+from simulants import node, render, retex
 
 
 class HairGenerator:

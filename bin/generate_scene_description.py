@@ -6,30 +6,23 @@ import random
 import uuid
 
 from argparse import ArgumentParser
-from dataset_toolbox.src.tools.common import find_filepaths, get_list
-from simulants.description import SimulantDescriptionGenerator
+from dataset_toolbox.src.tools.common import find_filepaths, get_list, mkdirp
+from simulants.description import update_layers
 
 if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--out_dir', type=str, help='where scene json will go', required=True)
-    parser.add_argument('--scene_dir', type=str, help='where scene blend files should end up', required=True)
-    parser.add_argument('--sim_dir', type=str, help='where simulant blends files should go', required=True)
+    parser.add_argument('--scene_dir', type=str, help='if saved, where scene blend files should end up', required=True)
+    parser.add_argument('--sims', type=str, help='directory of simulant json descriptors to use', required=True)
     parser.add_argument('--number', type=int, help='number of simulants in the scene', required=True)
+    parser.add_argument('--distribution', type=str, help='distribution function for sim positioning',
+                        default='uniform')
     parser.add_argument('--backgrounds', type=str, help='directory of backround hdr images',
                         default='/usr/local/share/datasets/hdris')
-    parser.add_argument('--textures', type=str, help='directory of texture pngs',
-                        default='/usr/local/share/datasets/simulants/patterns')
-    parser.add_argument('--pose_list', type=str, help='list of poses to use',
-                        default='/usr/local/share/datasets/simulants/mocap_pose_list.txt')
-    parser.add_argument('--hairs', type=str, help='base directory of hair models',
-                        default='/usr/local/share/datasets/simulants/hairs')
-    parser.add_argument('--clothes', type=str, help='base directory of clothing models',
-                        default='/usr/local/share/datasets/simulants/clothes')
+
     args = parser.parse_args()
 
     backgrounds = find_filepaths(args.backgrounds, 'hdr')
-    textures = find_filepaths(args.textures, 'png')
-    poses = get_list(args.pose_list)
 
     # Random scene values
     scene_id = str(uuid.uuid4())
@@ -41,22 +34,29 @@ if __name__ == '__main__':
                   'background': background,
                   'background_rotation': background_rotation,
                   'hdri_intensity': 1,
-                  'image_size': 1024,
-                  'tile_size': 32}
+                  'image_size': [720, 1280],
+                  'percent_size': 100,
+                  'tile_size': 32,
+                  'distribution': args.distribution}
 
-    sim_info = {'out_path': args.sim_dir,
-                'hair_path': args.hairs,
-                'clothes_path': args.clothes,
-                'textures': textures,
-                'poses': poses}
+    simulants = find_filepaths(args.sims, 'json')
 
     objects = []
     for i in range(args.number):
-        simulant = SimulantDescriptionGenerator(i, scene_id, sim_info)
-        info = simulant.desriptor()
+        try:
+            sim = random.choice(simulants)
+            with open(sim) as jd:
+                simulant = json.load(jd)
+        except ValueError:
+            print('{} is broken'.format(sim))
+            simulants.remove(sim)
+            with open(random.choice(simulants)) as jd:
+                simulant = json.load(jd)
+        info = update_layers(simulant, i)
         objects.append(info)
 
     scene_info['objects'] = objects
 
+    mkdirp(args.out_dir)
     with open(os.path.join(args.out_dir, '{}.json'.format(scene_id)), 'w') as outfile:
         json.dump(scene_info, outfile, indent=2)
