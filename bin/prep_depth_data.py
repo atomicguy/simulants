@@ -49,6 +49,13 @@ if __name__ == '__main__':
             head_mask.save(os.path.join(base_path, obj['id'], 'mask_{}.png'.format(obj['id'])))
             if ImageStat.Stat(head_mask).extrema[0][0] == ImageStat.Stat(head_mask).extrema[0][1]:
                 obj['distance'] = float('nan')
+
+            depth = depth_array(os.path.join(base_path, 'z', '{}_0001.exr'.format(info['scene_id'])))
+            np.putmask(depth, np.asarray(head_mask) / 255.0 < 1, 10000000001.0)
+            distance = np.mean(depth_values(depth))
+
+            obj['distance'] = float(distance)
+
         if obj['class_name'] == 'person':
             mask_parts = ['hair', 'misc', 'pants', 'shirt', 'skin']
             hair = Image.open(os.path.join(base_path, obj['id'],
@@ -60,12 +67,13 @@ if __name__ == '__main__':
                 mask = ImageChops.add(mask, part)
 
             mask.save(os.path.join(base_path, obj['id'], 'mask_{}.png'.format(obj['id'])))
-            depth = depth_array(os.path.join(base_path, 'z', '{}_0001.exr'.format(info['scene_id'])))
-            mask_np = np.asarray(mask)
-            mask_np = mask_np / 255.0
 
+            mask_np = np.asarray(mask) / 255.0
+
+            depth = depth_array(os.path.join(base_path, 'z', '{}_0001.exr'.format(info['scene_id'])))
             np.putmask(depth, mask_np < 1, 10000000001.0)
             distance = np.mean(depth_values(depth))
+
             obj['distance'] = float(distance)
 
     with open(os.path.join(base_path, 'metadata_{}.json'.format(info['scene_id'])), 'w') as outfile:
