@@ -144,3 +144,14 @@ def recolor_hair(new_color):
 
     node.link(hair, image_tex, 'Color', mix, 'Color1')
     node.link(hair, mix, 'Color', shader, 'Color')
+
+
+def customize_clothes(clothing_item, mask_name):
+    """Use specified mask to customize clothing item
+
+    :param clothing_item: clothing item to customize
+    :param mask_name: name of customization mask
+    """
+    obj = bpy.data.objects[clothing_item]
+    mask = obj.modifiers.new(name='pmask', type='MASK')
+    mask.vertex_group = mask_name

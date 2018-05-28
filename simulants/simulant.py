@@ -1,61 +1,16 @@
+from __future__ import absolute_import, division, print_function
+
 import ast
 import bpy
-import bpy_extras
 import math
 import mathutils
-import os
-import sys
 
-from simulants import node, render, retex
+from simulants import node, render
+from simulants.generators.hair import HairGenerator
+from simulants.generators.shirt import ShirtGenerator
+from simulants.generators.pants import PantsGenerator
 
-
-class HairGenerator:
-    def __init__(self, config):
-        self.config = config
-
-    def attach_to(self, geo):
-        hair = self.config['hair']
-        append_item(hair['model'], 'hair', geo)
-        render.set_render_layer('hair', hair['render_layer'])
-        hair_color = (
-            hair['rgb']['r'], hair['rgb']['g'], hair['rgb']['b'], 1)
-        retex.recolor_hair(hair_color)
-        get_blend_obj('hair').name = hair['id']
-        parent_to_skeleton(bpy.data.objects[hair['id']], bpy.data.objects[self.config['skeleton']])
-
-
-class ShirtGenerator:
-    def __init__(self, config):
-        self.config = config
-
-    def attach_to(self, geo):
-        shirt = self.config['shirt']
-        append_item(shirt['model'], 'tshirt', geo)
-        render.set_render_layer('tshirt', shirt['render_layer'])
-        shirt_mat = node.material('tshirt')
-        texture_file = shirt['texture']
-        retexture_shirt = getattr(retex, shirt['retexture_type'])
-        retexture_shirt(shirt_mat, texture_file)
-        get_blend_obj('tshirt').name = shirt['id']
-        customize_clothes(shirt['id'], shirt['style'])
-        parent_to_skeleton(bpy.data.objects[shirt['id']], bpy.data.objects[self.config['skeleton']])
-
-
-class PantsGenerator:
-    def __init__(self, config):
-        self.config = config
-
-    def attach_to(self, geo):
-        pants = self.config['pants']
-        append_item(pants['model'], 'pants', geo)
-        render.set_render_layer('pants', pants['render_layer'])
-        pants_mat = node.material('pants')
-        texture_file = pants['texture']
-        retexture_shirt = getattr(retex, pants['retexture_type'])
-        retexture_shirt(pants_mat, texture_file)
-        get_blend_obj('pants').name = pants['id']
-        customize_clothes(pants['id'], pants['style'])
-        parent_to_skeleton(bpy.data.objects[pants['id']], bpy.data.objects[self.config['skeleton']])
+from simulants.blend_ops import parent_to_skeleton, deselect_all, get_blend_obj
 
 
 class SimulantGenerator:
@@ -65,11 +20,11 @@ class SimulantGenerator:
 
     def personalize(self):
         set_skin(self.config['base_mesh'], self.config['skin']['hue'], self.config['skin']['saturation'],
-                          self.config['skin']['value'], self.config['skin']['age'], self.config['skin']['bump'])
+                 self.config['skin']['value'], self.config['skin']['age'], self.config['skin']['bump'])
         set_eyes(self.config['base_mesh'], self.config['eye']['hue'], self.config['eye']['saturation'],
-                          self.config['eye']['value'])
+                 self.config['eye']['value'])
         set_traits(self.config['base_mesh'], self.config['traits']['age'], self.config['traits']['mass'],
-                            self.config['traits']['tone'])
+                   self.config['traits']['tone'])
         make_unique(self.config['randomize'])
         finalize()
 
@@ -105,24 +60,6 @@ class SimulantGenerator:
         pose(self.config['geometry'], self.config['pose'])
 
 
-class OutputRedirect:
-    def __init__(self, output, redirected_path):
-        self.output = output
-        self.redirected_path = redirected_path
-
-    def __enter__(self):
-        self.output_fd_backup = os.dup(self.output.fileno())
-        self.output.flush()
-        os.close(self.output.fileno())
-        os.open(self.redirected_path, os.O_WRONLY)
-        return self
-
-    def __exit__(self, exc_type, exc_value, traceback):
-        os.close(self.output.fileno())
-        os.dup(self.output_fd_backup)
-        os.close(self.output_fd_backup)
-
-
 def clothing_generator(x, sim_values):
     if x == 'hair':
         return HairGenerator(sim_values)
@@ -130,37 +67,6 @@ def clothing_generator(x, sim_values):
         return ShirtGenerator(sim_values)
     if x == 'pants':
         return PantsGenerator(sim_values)
-
-
-def parent_to_skeleton(obj, skeleton, bone=''):
-    """Parent specified object to specified skeleton
-
-    :param obj: mesh to parent to skeleton
-    :param skeleton: Simulant skeleton
-    :param bone: optional specific bone as target
-    """
-    obj.parent = skeleton
-    if not bone == '':
-        obj.parent_type = 'BONE'
-        obj.parent_bone = bone
-
-
-def deselect_all():
-    for obj in bpy.context.scene.objects:
-        obj.select = False
-
-
-def get_blend_obj(object_name):
-    """Return a specified blender object
-
-    :param object_name: name (or start of name) of object to be returned
-    :return: the specified blender object
-    """
-    objs = bpy.data.objects
-    obj_list = [obj for obj in objs if obj.name.startswith(object_name)]
-    assert len(obj_list) > 0, 'object {} not found'.format(object_name)
-
-    return obj_list[0]
 
 
 def get_mat_slot(blend_object, name):
@@ -257,45 +163,6 @@ def uncensor(body):
     generic_slot.material = skin_material
 
 
-def append_item(filepath, item_name, body):
-    """Append clothing item to current scene"""
-    scn = bpy.context.scene
-    item = item_name
-    link = False
-
-    # Get item from external file
-    with bpy.data.libraries.load(filepath, link=link) as (source, target):
-        target.objects = [name for name in source.objects if name.startswith(item)]
-
-    # Append to current scene
-    for obj in target.objects:
-        if obj is not None:
-            scn.objects.link(obj)
-
-    # Proxy fit
-    deselect_all()
-    get_blend_obj(body).select = True
-    item = get_blend_obj(item)
-    item.select = True
-    print('fitting item {}'.format(item))
-    bpy.ops.mbast.proxy_removefit()
-    bpy.context.scene.mblab_overwrite_proxy_weights = True
-    bpy.context.scene.mblab_proxy_offset = 5
-    with OutputRedirect(sys.stdout, '/dev/null'):
-        bpy.ops.mbast.proxy_fit()
-
-
-def customize_clothes(clothing_item, mask_name):
-    """Use specified mask to customize clothing item
-
-    :param clothing_item: clothing item to customize
-    :param mask_name: name of customization mask
-    """
-    obj = bpy.data.objects[clothing_item]
-    mask = obj.modifiers.new(name='pmask', type='MASK')
-    mask.vertex_group = mask_name
-
-
 def get_bone(skeleton, bone_name):
     """Return bone of given name"""
     skeleton = get_blend_obj(skeleton)
@@ -347,5 +214,5 @@ def head_proxy(base_skeleton, measurements, proxy_id):
     parent_to_skeleton(head_proxy, skeleton, bone='head')
 
     # Fix translation (move -Y two thirds as head bone's tail is now origin)
-    center_bone_relative = mathutils.Vector((0, -(2/3) * skeleton.pose.bones['head'].length, 0))
+    center_bone_relative = mathutils.Vector((0, -(2 / 3) * skeleton.pose.bones['head'].length, 0))
     head_proxy.location = center_bone_relative
