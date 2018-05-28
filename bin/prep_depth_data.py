@@ -51,7 +51,7 @@ if __name__ == '__main__':
                 obj['distance'] = float('nan')
 
             depth = depth_array(os.path.join(base_path, 'z', '{}_0001.exr'.format(info['scene_id'])))
-            np.putmask(depth, np.asarray(head_mask) / 255.0 < 1, 10000000001.0)
+            np.putmask(depth, (np.asarray(head_mask) / 255.0) < 1, 10000000001.0)
             distance = np.mean(depth_values(depth))
 
             obj['distance'] = float(distance)
