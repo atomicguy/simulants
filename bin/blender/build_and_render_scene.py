@@ -6,7 +6,6 @@ import math
 import os
 import json
 import random
-import subprocess
 import sys
 
 from argparse import ArgumentParser
@@ -131,7 +130,7 @@ if __name__ == '__main__':
         bpy.context.scene.layers = [i == layer_id for i in range(len(bpy.context.scene.layers))]
         bpy.ops.render.render(animation=False, write_still=True)
 
-        head_info = simulant.head_properties('skeleton_{}'.format(character['id']))
+        head_info = simulant.head_proxy_properties(character['head_proxy']['id'])
         head_info['class_name'] = 'head'
         head_info['id'] = character['head_id']
         head_info['center'] = [x for x in head_info['center']]

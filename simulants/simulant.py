@@ -216,3 +216,13 @@ def head_proxy(base_skeleton, measurements, proxy_id):
     # Fix translation (move -Y two thirds as head bone's tail is now origin)
     center_bone_relative = mathutils.Vector((0, -(2 / 3) * skeleton.pose.bones['head'].length, 0))
     head_proxy.location = center_bone_relative
+
+
+def head_proxy_properties(head_proxy):
+    """Return current head proxy properties"""
+    proxy = bpy.data.objects[head_proxy]
+    head_center = proxy.matrix_world.to_translation()
+    head_radius = proxy.dimensions[0] / 2
+    distance = get_blend_obj('Camera').location - head_center
+
+    return {'radius': head_radius, 'center': head_center, 'distance': distance.length}

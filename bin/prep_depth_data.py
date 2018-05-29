@@ -50,12 +50,6 @@ if __name__ == '__main__':
             if ImageStat.Stat(head_mask).extrema[0][0] == ImageStat.Stat(head_mask).extrema[0][1]:
                 obj['distance'] = float('nan')
 
-            depth = depth_array(os.path.join(base_path, 'z', '{}_0001.exr'.format(info['scene_id'])))
-            np.putmask(depth, (np.asarray(head_mask) / 255.0) < 1, 10000000001.0)
-            distance = np.mean(depth_values(depth))
-
-            obj['distance'] = float(distance)
-
         if obj['class_name'] == 'person':
             mask_parts = ['hair', 'misc', 'pants', 'shirt', 'skin']
             hair = Image.open(os.path.join(base_path, obj['id'],
