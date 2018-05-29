@@ -2,14 +2,9 @@ from __future__ import absolute_import
 
 import bpy
 import math
-import os
 import random
-import sys
 
-cwd = os.path.dirname(os.path.abspath(__file__))
-sys.path.append(cwd)
-
-import node
+from simulants import node
 
 def use_texture(material, texture):
     mat_nodes = material.node_tree.nodes

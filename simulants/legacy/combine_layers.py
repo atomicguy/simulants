@@ -11,7 +11,7 @@ import OpenEXR
 import colorsys
 import datetime
 import numpy as np
-import tools.matching as match
+import simulants.tools.matching as match
 
 from PIL import Image, ImageOps, ImageChops
 from skimage import color

@@ -156,7 +156,6 @@ def make_mat_index_layers(tree, links, output, output_node, filename):
     new_mat_index_nodes(2, 'shirt', tree, links, output, output_node, filename)
     new_mat_index_nodes(3, 'pants', tree, links, output, output_node, filename)
     new_mat_index_nodes(4, 'hair', tree, links, output, output_node, filename)
-    # new_mat_index_nodes(5, 'body', tree, links, output, output_node, filename)
     new_mat_index_nodes(6, 'etc', tree, links, output, output_node, filename)
 
 
