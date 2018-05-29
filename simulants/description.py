@@ -1,3 +1,5 @@
+from __future__ import absolute_import, division, print_function
+
 import math
 import os
 import random
@@ -109,7 +111,7 @@ def which_sex(base_mesh):
     return sex
 
 
-def random_position(fov=30, min=1.5, max=10, camera=-2.5):
+def random_position(fov=30, min=2, max=10, camera=-2.5, type='beta'):
     """Generate an x,y,z position within a given frustum
 
     :param fov: camera field of view
@@ -118,7 +120,10 @@ def random_position(fov=30, min=1.5, max=10, camera=-2.5):
     :param camera: camera position on y axis
     :return: (x, y, z) coordinates
     """
-    rho = random.uniform(min, max)
+    if type == 'beta':
+        rho = (1 - random.betavariate(min, max)) * 10
+    else:
+        rho = random.uniform(1.5, 10)
     phi = random.uniform(math.radians(-1*fov/2), math.radians(fov/2))
     x = rho * math.sin(phi)
     y = rho * math.cos(phi) + camera

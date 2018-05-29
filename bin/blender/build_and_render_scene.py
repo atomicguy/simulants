@@ -1,11 +1,8 @@
-from __future__ import division
-from __future__ import print_function
+from __future__ import absolute_import, division, print_function
 
 import bpy
-import math
 import os
 import json
-import random
 import sys
 
 from argparse import ArgumentParser
@@ -28,19 +25,6 @@ def create_metadata(info):
     return metadata
 
 
-def random_position(type='beta'):
-    if type == 'beta':
-        rho = (1 - random.betavariate(2, 5)) * 10
-    else:
-        rho = random.uniform(1.5, 10)
-    phi = random.uniform(math.radians(-15), math.radians(15))
-    x = rho * math.sin(phi)
-    y = rho * math.cos(phi) - 2.5
-    z = 0
-
-    return (x, y, z)
-
-
 if __name__ == '__main__':
     argv = sys.argv
     if "--" not in argv:
@@ -60,6 +44,7 @@ if __name__ == '__main__':
     sys.path.append(import_dir)
 
     from simulants import camera, render, simulant
+    from simulants.description import random_position
 
     with open(args.info) as jd:
         info = json.load(jd)
@@ -102,7 +87,7 @@ if __name__ == '__main__':
             render.set_render_layer(part, layer)
 
         # reposition simulant
-        bpy.data.objects[obj['skeleton']].location = random_position(info['distribution'])
+        bpy.data.objects[obj['skeleton']].location = random_position(type=info['distribution'])
 
     image_size = info['image_size']
     image_percent = int(info['percent_size'])
