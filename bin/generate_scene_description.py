@@ -41,10 +41,11 @@ if __name__ == '__main__':
 
     simulants = find_filepaths(args.sims, 'json')
 
+    sim_sample = random.sample(simulants, args.number)
+
     objects = []
-    for i in range(args.number):
+    for i, sim in enumerate(sim_sample):
         try:
-            sim = random.choice(simulants)
             with open(sim) as jd:
                 simulant = json.load(jd)
         except ValueError:
