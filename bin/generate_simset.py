@@ -11,18 +11,26 @@ from simulants.description import SimulantDescriptionGenerator
 
 if __name__ == '__main__':
     parser = ArgumentParser()
-    parser.add_argument('--out_dir', type=str, help='where scene jsons will go', required=True)
-    parser.add_argument('--sim_dir', type=str, help='where simulant blends files should go', required=True)
+    parser.add_argument('--out_dir', type=str, help='where scene jsons will go',
+                        default='tmp/jsons')
+    parser.add_argument('--sim_dir', type=str, help='where simulant blends files should go',
+                        default='tmp/simulants')
     parser.add_argument('--number', type=int, help='number of simulants jsons to generate', required=True)
     parser.add_argument('--textures', type=str, help='directory of texture pngs',
-                        default='/usr/local/share/datasets/simulants/patterns')
+                        default='data/patterns')
     parser.add_argument('--pose_list', type=str, help='list of poses to use',
-                        default='/usr/local/share/datasets/simulants/mocap_pose_list.txt')
+                        default='data/mocap_pose_list.txt')
     parser.add_argument('--hairs', type=str, help='base directory of hair models',
-                        default='/usr/local/share/datasets/simulants/hairs')
+                        default='data/hairs')
     parser.add_argument('--clothes', type=str, help='base directory of clothing models',
-                        default='/usr/local/share/datasets/simulants/clothes')
+                        default='data/clothes')
     args = parser.parse_args()
+
+    if not os.path.exists(args.out_dir):
+        os.makedirs(args.out_dir)
+
+    if not os.path.exists(args.sim_dir):
+        os.makedirs(args.sim_dir)
 
     textures = find_filepaths(args.textures, 'png')
     poses = get_list(args.pose_list)

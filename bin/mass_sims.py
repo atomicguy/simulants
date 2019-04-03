@@ -26,7 +26,7 @@ def write_error(work_item, exception):
 
 def work(work_item):
     sim_name = os.path.splitext(os.path.basename(work_item))[0]
-    token_path = os.path.join('/usr/local/share/datasets/simulants/depth/simulants', '{}.blend'.format(sim_name))
+    token_path = os.path.join('tmp/simulants', '{}.blend'.format(sim_name))
 
     if os.path.exists(token_path):
         print('skipping {}'.format(token_path))
@@ -43,7 +43,7 @@ def work(work_item):
 
 
 if __name__ == '__main__':
-    work_list = find_filepaths('/usr/local/share/datasets/simulants/depth/descriptors/simulants', 'json')
+    work_list = find_filepaths('tmp/jsons', 'json')
 
     print('found {} items'.format(len(work_list)))
 
