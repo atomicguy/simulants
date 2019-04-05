@@ -37,7 +37,7 @@ if __name__ == '__main__':
         if obj_properties['class_name'] == 'simulant':
             if not os.path.isfile(obj_properties['path']):
                 # reset Blender setup
-                bpy.ops.wm.open_mainfile(filepath=base_file)
+                bpy.ops.wm.open_mainfile(filepath=args.base_scene)
                 this_simulant = simulant.SimulantGenerator(obj_properties)
                 this_simulant.personalize()
                 this_simulant.set_pose()
@@ -49,7 +49,7 @@ if __name__ == '__main__':
                 bpy.ops.wm.save_as_mainfile(filepath=obj_properties['path'])
 
     # Combine into scene
-    bpy.ops.wm.open_mainfile(filepath=args.base_file)
+    bpy.ops.wm.open_mainfile(filepath=args.base_scene)
     render.hdri_lighting(info['background'], info['hdri_intensity'])
     camera.position()
     camera.rotate_env_tex(info['background_rotation'])
