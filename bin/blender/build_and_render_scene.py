@@ -33,7 +33,7 @@ if __name__ == '__main__':
         argv = argv[argv.index("--") + 1:]  # get all args after "--"
 
     parser = ArgumentParser()
-    parser.add_argument('--info', '-i', type=str, help='info json describing character', required=True)
+    parser.add_argument('--info', '-i', type=str, help='info json describing scene', required=True)
     parser.add_argument('--out', '-o', type=str, help='directory to store resultant scene', required=True)
     parser.add_argument('--save', '-s', type=str, help='set true to save scene file', default='False')
     parser.add_argument('--base', '-b', type=str, help='base blend file', default='./data/base_scene.blend')

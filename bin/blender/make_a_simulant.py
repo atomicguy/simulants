@@ -18,7 +18,7 @@ if __name__ == '__main__':
     parser = ArgumentParser()
     parser.add_argument('--info', type=str, help='info json describing character', required=True)
     parser.add_argument('--base_scene', type=str, help='blender base file',
-                        default='/usr/local/share/datasets/simulants/base_scene.blend')
+                        default='data/base_scene.blend')
     args, _ = parser.parse_known_args(argv)
 
     cwd = os.path.dirname(os.path.abspath(__file__))

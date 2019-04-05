@@ -54,12 +54,18 @@ def append_item(filepath, item_name, body):
 
     # Proxy fit
     deselect_all()
-    get_blend_obj(body).select = True
-    item = get_blend_obj(item)
-    item.select = True
+
     print('fitting item {}'.format(item))
     bpy.ops.mbast.proxy_removefit()
-    bpy.context.scene.mblab_overwrite_proxy_weights = True
+    bpy.context.scene.mblab_transfer_proxy_weights = True
     bpy.context.scene.mblab_proxy_offset = 5
+
+    # Set proxy fit reference
+    bpy.context.scene.mblab_fitref_name = body
+
+    # Set proxy object by name
+    full_name = [item.name for item in bpy.data.objects if item.name.startswith(item_name)][0]
+    bpy.context.scene.mblab_proxy_name = full_name
+
     with OutputRedirect(sys.stdout, '/dev/null'):
         bpy.ops.mbast.proxy_fit()
