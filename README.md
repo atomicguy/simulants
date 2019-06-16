@@ -1,4 +1,7 @@
 # simulants
+
+![Simulant Wall](https://res.cloudinary.com/atomic/image/upload/v1560658645/simulant_wall_rbauln.gif)
+
 Tools to generate simulated humanoids for segmentation training
 
 Using Blender and ManuelBastioniLAB to generate images to use in segmentation training.
