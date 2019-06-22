@@ -10,7 +10,7 @@ from simulants.generators.hair import HairGenerator
 from simulants.generators.shirt import ShirtGenerator
 from simulants.generators.pants import PantsGenerator
 
-from simulants.blend_ops import parent_to_skeleton, deselect_all, get_blend_obj
+from simulants.blend_ops import parent_to_skeleton, deselect_all, get_blend_obj, proxy_fit
 
 
 class SimulantGenerator:
@@ -52,18 +52,23 @@ class SimulantGenerator:
         position(self.config['skeleton'], self.config['location'])
 
     def clothe(self):
-        for x in ['hair', 'shirt', 'pants']:
+        for x in ['hair', 'pants', 'tshirt']:
             cfg = clothing_generator(x, self.config)
             cfg.attach_to(self.config['geometry'])
 
     def set_pose(self):
         pose(self.config['geometry'], self.config['pose'])
 
+    def proxy_fit(self):
+        print(self.config['geometry'])
+        for x in ['hair', 'tshirt', 'pants']:
+            proxy_fit(x, self.config['geometry'])
+
 
 def clothing_generator(x, sim_values):
     if x == 'hair':
         return HairGenerator(sim_values)
-    if x == 'shirt':
+    if x == 'tshirt':
         return ShirtGenerator(sim_values)
     if x == 'pants':
         return PantsGenerator(sim_values)

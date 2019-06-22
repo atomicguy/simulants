@@ -38,12 +38,16 @@ if __name__ == '__main__':
             if not os.path.isfile(obj_properties['path']):
                 # reset Blender setup
                 bpy.ops.wm.open_mainfile(filepath=args.base_scene)
+
+                # Load simulant and set properties
                 this_simulant = simulant.SimulantGenerator(obj_properties)
                 this_simulant.personalize()
-                this_simulant.set_pose()
                 this_simulant.clothe()
+                this_simulant.set_pose()
                 this_simulant.set_position()
-
+                this_simulant.proxy_fit()
+    
+                # Pack and save blendfile
                 bpy.ops.file.pack_all()
                 common.mkdirp(os.path.split(obj_properties['path'])[0])
                 bpy.ops.wm.save_as_mainfile(filepath=obj_properties['path'])
@@ -54,7 +58,7 @@ if __name__ == '__main__':
     camera.position()
     camera.rotate_env_tex(info['background_rotation'])
 
-    # Import objects
+    # Import any additional objects
     for obj in info['objects']:
         with bpy.data.libraries.load(obj['path'], link=False) as (source, target):
             target.objects = [name for name in source.objects if name.endswith(obj['id'])]
