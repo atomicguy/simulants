@@ -19,7 +19,7 @@ ENV PATH="/usr/local/blender:${PATH}"
 COPY blend_scripts/ $SCRIPTDIR
 
 # download and install MBLab
-RUN curl -L https://github.com/animate1978/MB-Lab/archive/1.7.4b.zip -o /tmp/manuelbastionilab.zip
+RUN curl -L https://github.com/animate1978/MB-Lab/archive/1_7_7.zip -o /tmp/manuelbastionilab.zip
 
 RUN blender -b --python $SCRIPTDIR/install_lab.py
 
