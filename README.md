@@ -14,3 +14,5 @@ For more information, check out the story behind these tools: [Simulants: A Synt
 ``./run_container.sh``
 
 (adjust output paths as needed)
+
+This will generate a `tmp` directory and render multiple layers into it. The layers themselves can be used for training (i.e. depth map or UV maps), the image layers should be composited to create a single image.
